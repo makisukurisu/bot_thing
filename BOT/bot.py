@@ -8,7 +8,9 @@ c = db.cursor()
 
 lst_GNB = ['Отлично', 'Хорошо', 'Плохо']
 
-chats = {'Neg': 'ID', 'Pos': 'ID', 'Neu': 'ID'}
+chats = {'Neg': '-436080592', 'Pos': '-359369842', 'Neu': '-463073970'}
+
+quest = {'all': '', 'alert': '', 'tech': ''}
 
 class U_TH():
 
@@ -18,6 +20,7 @@ class U_TH():
 		self.answers = []
 		self.message = None
 		self.numb = None
+		self.about = None
 	def new_ans(self, answ):
 		self.answers.append(answ)
 	def new_msg(self, msg):
@@ -69,6 +72,11 @@ def non_req_GNB(message, func):
 	msg = bot.send_message(message.chat.id, 'Вам следует нажимать на кнопки снизу.\n\nЕсли они не работают напишите нашей службе поддержки или /start', reply_markup = get_GNB_markup())
 	bot.register_next_step_handler(msg, func)
 
+def get_string(id, type = None):
+	None
+	#if type == 'Отлично':
+		#if get_us(id).type == 'all':
+			
 
 ###SQL Functions###
 
@@ -82,6 +90,11 @@ def get_msg_by_Id(id_, tab, message):
 		bot.send_message(message.chat.id, 'asd')
 
 ###Bot handlers###
+
+@bot.message_handler(commands = ['chat_id'])
+def get_chat_id(message):
+
+	bot.send_message(message.chat.id, 'Айди этого чата:\n<code>{}</code>'.format(message.chat.id), parse_mode = "HTML")
 
 @bot.message_handler(commands = ['start'])
 def start_msg(message):
@@ -235,7 +248,7 @@ def final_step(message):
 	if type(message.contact) != type(None):
 		append_to_us(message.from_user.id, message.contact.phone_number, 'numb')
 		all = get_us(message.from_user.id).get_all()
-		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!\n\n{}'.format(all))
+		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!', reply_markup = types.ReplyKeyboardRemove())
 	elif message.text == 'Не передавать':
 		bot.send_message(message.chat.id, 'Нам будет труднее вас идентифицировать, но мы что-то придумаем')
 	elif message.text.find('/start') >= 0:
