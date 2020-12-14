@@ -16,6 +16,8 @@ class U_TH():
 		self.id = t_id
 		self.from_ = from_
 		self.answers = []
+		self.message = None
+		self.numb = None
 	def new_ans(self, answ):
 		self.answers.append(answ)
 	def new_msg(self, msg):
@@ -25,7 +27,7 @@ class U_TH():
 	def get_all(self):
 		all = []
 		try:
-			all.append(self.id, self.from_, self.answers, self.message, self.numb)
+			all = [self.id, self.from_, self.answers, self.message, self.numb]
 		except:
 			all = [self.id, self.from_, self.answers, self.message]
 		return all
@@ -214,7 +216,6 @@ def get_numb_subm(message):
 
 	msg_text = ''
 	if message.text == 'Нет':
-
 		msg_text = 'Сожалеем что наш сервис вас не устроил.'
 	elif message.text.find('/start') >= 0:
 		start_msg(message)
@@ -232,7 +233,7 @@ def get_numb_subm(message):
 def final_step(message):
 
 	if type(message.contact) != type(None):
-		append_to_us(message.from_user.id, message.contact.phone_number, 'msg')
+		append_to_us(message.from_user.id, message.contact.phone_number, 'numb')
 		all = get_us(message.from_user.id).get_all()
 		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!\n\n{}'.format(all))
 	elif message.text == 'Не передавать':
