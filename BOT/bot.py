@@ -9,8 +9,11 @@ c = db.cursor()
 lst_GNB = ['Отлично', 'Хорошо', 'Плохо']
 
 chats = {'Neg': '-436080592', 'Pos': '-359369842', 'Neu': '-463073970'}
+chats_indx = ['-359369842', '-463073970', '-436080592']
 
-quest = {'all': '', 'alert': '', 'tech': ''}
+quest = {'all': ['Офис менеджер', 'Оператор пульта', 'Служба ГБР', 'Тех.группа'],
+		'alert': ['Отработка тревог'],
+		'tech': ['Тех.группа']}
 
 class U_TH():
 
@@ -27,13 +30,10 @@ class U_TH():
 		self.message = msg
 	def new_numb(self, numb):
 		self.numb = numb
-	def get_all(self):
-		all = []
-		try:
-			all = [self.id, self.from_, self.answers, self.message, self.numb]
-		except:
-			all = [self.id, self.from_, self.answers, self.message]
-		return all
+	def new_about(self, about):
+		self.about = about
+	def get_all(self):		
+		return [self.id, self.from_, self.answers, self.message, self.numb, self.about]
 
 
 us_answers = []
@@ -49,6 +49,8 @@ def append_to_us(id, info, fun = 'ans'):
 				x.new_msg(info)
 			elif fun == 'numb':
 				x.new_numb(info)
+			elif fun == 'about':
+				x.new_about(info)
 
 
 def get_us(id):
@@ -76,7 +78,19 @@ def get_string(id, type = None):
 	None
 	#if type == 'Отлично':
 		#if get_us(id).type == 'all':
-			
+
+def proc_us(id):
+	
+	U_Info = get_us(id)
+	m_text = ['', '', '']
+	answ_var = ['Отлично', 'Хорошо', 'Плохо']
+	comp_text = []
+	for x in range(len(U_Info.answers)):
+		m_text[answ_var.index(U_Info.answers[x])] += quest[U_Info.about][x] + "\n"
+	for x in m_text:
+		msg = '{} - {} Оставил новый отзыв:\n\n{}\n\nОценил {}\n{}'.format(U_Info.id, U_Info.numb, m_text[m_text.index(x)], answ_var[m_text.index(x)], U_Info.from_)
+		bot.send_message(chats_indx[m_text.index(x)], msg)
+
 
 ###SQL Functions###
 
@@ -163,6 +177,7 @@ def pult_msg(message):
 	if message.text in lst_GNB:
 		us_answers.append(U_TH(message.from_user.id, ''))
 		append_to_us(message.from_user.id, message.text)
+		append_to_us(message.from_user.id, 'all', 'about')
 		msg = bot.send_message(message.chat.id, 'Оцените качество обслуживания операторов пульта', reply_markup = get_GNB_markup())
 		bot.register_next_step_handler(msg, gbr_msg)
 	else:
@@ -249,11 +264,11 @@ def final_step(message):
 		append_to_us(message.from_user.id, message.contact.phone_number, 'numb')
 		all = get_us(message.from_user.id).get_all()
 		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!', reply_markup = types.ReplyKeyboardRemove())
+		proc_us(message.from_user.id)
 	elif message.text == 'Не передавать':
 		bot.send_message(message.chat.id, 'Нам будет труднее вас идентифицировать, но мы что-то придумаем')
 	elif message.text.find('/start') >= 0:
 		start_msg(message)
-		return
 	else:
 		non_req_GNB(message, final_step)
 
