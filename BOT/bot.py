@@ -17,13 +17,16 @@ quest = {'all': ['Офис менеджер', 'Оператор пульта', '
 
 class U_TH():
 
-	def __init__(self, t_id, from_):
+	def __init__(self, t_id, from_, name, username = None):
 		self.id = t_id
 		self.from_ = from_
 		self.answers = []
 		self.message = None
 		self.numb = None
 		self.about = None
+		self.name = name
+		self.username = username
+		self.cab = None
 	def new_ans(self, answ):
 		self.answers.append(answ)
 	def new_msg(self, msg):
@@ -32,8 +35,10 @@ class U_TH():
 		self.numb = numb
 	def new_about(self, about):
 		self.about = about
+	def new_cab(self, cab):
+		self.cab = cab
 	def get_all(self):		
-		return [self.id, self.from_, self.answers, self.message, self.numb, self.about]
+		return [self.id, self.from_, self.answers, self.message, self.numb, self.about, self.name, self.username, self.cab]
 
 
 us_answers = []
@@ -51,10 +56,11 @@ def append_to_us(id, info, fun = 'ans'):
 				x.new_numb(info)
 			elif fun == 'about':
 				x.new_about(info)
+			elif fun == 'cab':
+				x.new_cab(info)
 
 
 def get_us(id):
-
 	for x in us_answers:
 		if x.id == id:
 			return x
@@ -87,8 +93,19 @@ def proc_us(id):
 	comp_text = []
 	for x in range(len(U_Info.answers)):
 		m_text[answ_var.index(U_Info.answers[x])] += quest[U_Info.about][x] + "\n"
+	print(m_text)
 	for x in m_text:
-		msg = '{} - {} Оставил новый отзыв:\n\n{}\n\nОценил {}\n{}'.format(U_Info.id, U_Info.numb, m_text[m_text.index(x)], answ_var[m_text.index(x)], U_Info.from_)
+		if x == "":
+			continue
+		if U_Info.username is not None:
+			us = "(@{})".format(U_Info.username)
+		else:
+			us = ""
+		if U_Info.message is not None:
+			um = "Сообщение: {}".format(U_Info.message)
+		else:
+			um = ""
+		msg = '{} - {} {}\nОставил новый отзыв:\n\n{}\n\nОценил {}\n{}\n\n{}'.format(U_Info.name, U_Info.numb, us,m_text[m_text.index(x)], answ_var[m_text.index(x)], U_Info.from_, um)
 		bot.send_message(chats_indx[m_text.index(x)], msg)
 
 
@@ -114,6 +131,10 @@ def get_chat_id(message):
 def start_msg(message):
 
 	a = message.text.split(' ')
+	try:
+		us_answers.remove(get_us(message.from_user.id))
+	except:
+		None
 	if len(a) > 1:
 		markup = types.ReplyKeyboardMarkup()
 		markup.add(types.KeyboardButton('Да, конечно'))
@@ -135,7 +156,6 @@ def answ_start(message, from_ = None):
 		return
 	if from_ is not None:
 		if message.text == 'Да, конечно':
-			###Записать уже в таблицу? Наверное да, а потом update or insert и так и жить###
 			if from_ == 'all':
 				message.text = 'Отзыв о всех'
 				answ_start(message)
@@ -146,7 +166,8 @@ def answ_start(message, from_ = None):
 				message.text = 'Отзыв о тех.группе'
 				answ_start(message)
 			else:
-				return
+				message.text = '/start'
+				answ_start(message)
 		elif message.text == 'Нет, не хочу':
 			bot.send_message(message.chat.id, 'Очень жаль, помните что вы всегда можете оставить отзыв нам воспользовавшись коммандой /start')
 		else:
@@ -156,10 +177,11 @@ def answ_start(message, from_ = None):
 		msg = bot.send_message(message.chat.id, 'Оцените качество обслуживания офис-менеджера', reply_markup = get_GNB_markup())
 		bot.register_next_step_handler(msg, pult_msg)
 	elif message.text == 'Отзыв о тревогах':
-		###Это и след надо прописать отдельными функциями###
-		None
+		msg = bot.send_message(message.chat.id, "Оцените качество отработки тревог на Вашем объекте", reply_markup = get_GNB_markup())
+		bot.register_next_step_handler(msg, trev_msg)
 	elif message.text == 'Отзыв о тех.группе':
-		None
+		msg = bot.send_message(message.chat.id, 'Оцените качество работы технической группы', reply_markup = get_GNB_markup())
+		bot.register_next_step_handler(msg, tech_rev_msg)
 	else:
 		markup = types.ReplyKeyboardMarkup()
 		markup.add(types.KeyboardButton('Отзыв о всех'))
@@ -168,6 +190,50 @@ def answ_start(message, from_ = None):
 		msg = bot.send_message(message.chat.id, 'Вам следует нажимать на кнопки снизу.\n\nЕсли они не работают напишите нашей службе поддержки или /start')
 		bot.register_next_step_handler(msg, answ_start)
 
+def tech_rev_msg(message):
+	
+	if message.text.find('/start') >= 0:
+		start_msg(message)
+		return
+	if message.text in lst_GNB:
+		us_answers.append(U_TH(message.from_user.id, '', message.from_user.first_name, message.from_user.username))
+		append_to_us(message.from_user.id, message.text)
+		append_to_us(message.from_user.id, 'tech', 'about')
+		info = get_us(message.from_user.id)
+		if 'Плохо' in info.answers:
+			markup = types.ReplyKeyboardMarkup()
+			markup.add(types.KeyboardButton('Да'))
+			markup.add(types.KeyboardButton('Нет'))
+			msg = bot.send_message(message.chat.id, 'Вам что-то не понравилось, нам комментарий?', reply_markup = markup)
+			bot.register_next_step_handler(msg, get_msg_about)
+		else:
+			message.text = "-1testbug"
+			get_numb_subm(message)
+	else:
+		non_req_GNB(message, trev_msg)
+
+def trev_msg(message):
+
+	if message.text.find('/start') >= 0:
+		start_msg(message)
+		return
+	if message.text in lst_GNB:
+		us_answers.append(U_TH(message.from_user.id, '', message.from_user.first_name, message.from_user.username))
+		append_to_us(message.from_user.id, message.text)
+		append_to_us(message.from_user.id, 'alert', 'about')
+		info = get_us(message.from_user.id)
+		if 'Плохо' in info.answers:
+			markup = types.ReplyKeyboardMarkup()
+			markup.add(types.KeyboardButton('Да'))
+			markup.add(types.KeyboardButton('Нет'))
+			msg = bot.send_message(message.chat.id, 'Вам что-то не понравилось, нам комментарий?', reply_markup = markup)
+			bot.register_next_step_handler(msg, get_msg_about)
+		else:
+			message.text = "-1testbug"
+			get_numb_subm(message)
+	else:
+		non_req_GNB(message, trev_msg)
+
 def pult_msg(message):
 	
 	###Реализовать сбор данных###
@@ -175,7 +241,7 @@ def pult_msg(message):
 		start_msg(message)
 		return
 	if message.text in lst_GNB:
-		us_answers.append(U_TH(message.from_user.id, ''))
+		us_answers.append(U_TH(message.from_user.id, '', message.from_user.first_name, message.from_user.username))
 		append_to_us(message.from_user.id, message.text)
 		append_to_us(message.from_user.id, 'all', 'about')
 		msg = bot.send_message(message.chat.id, 'Оцените качество обслуживания операторов пульта', reply_markup = get_GNB_markup())
@@ -185,7 +251,6 @@ def pult_msg(message):
 
 def gbr_msg(message):
 	
-	###Реализовать сбор данных###
 	if message.text.find('/start') >= 0:
 		start_msg(message)
 		return
@@ -198,7 +263,6 @@ def gbr_msg(message):
 
 def tech_msg(message):
 
-	###Реализовать сбор данных###
 	if message.text.find('/start') >= 0:
 		start_msg(message)
 		return
@@ -224,7 +288,8 @@ def concl_msg(message):
 			msg = bot.send_message(message.chat.id, 'Вам что-то не понравилось, нам комментарий?', reply_markup = markup)
 			bot.register_next_step_handler(msg, get_msg_about)
 		else:
-			msg = bot.send_message(message.chat.id, 'Велп')
+			message.text = "-1testbug"
+			get_numb_subm(message)
 	else:
 		non_req_GNB(message, tech_msg)
 
@@ -248,29 +313,34 @@ def get_numb_subm(message):
 	elif message.text.find('/start') >= 0:
 		start_msg(message)
 		return
-	else:
+	if message.text != "-1testbug":
 		append_to_us(message.from_user.id, message.text, 'msg')
-		if msg_text == '':
-			msg_text = 'Спасибо за ваш отзыв, теперь - финальный этап. Поделитесь с нами вашим номером телефона чтобы мы могли вам ответить и помочь с проблемами.'
-		markup = types.ReplyKeyboardMarkup()
-		markup.add(types.KeyboardButton('Передать номер телефона', True))
-		markup.add(types.KeyboardButton('Не предавать'))
-		msg = bot.send_message(message.chat.id, msg_text, reply_markup = markup)
-		bot.register_next_step_handler(msg, final_step)
+	else:
+		append_to_us(message.from_user.id, None, 'msg')
+	if msg_text == '':
+		msg_text = 'Спасибо за ваш отзыв, теперь - финальный этап. Поделитесь с нами вашим номером телефона чтобы мы могли вам ответить и помочь с проблемами.'
+	markup = types.ReplyKeyboardMarkup()
+	markup.add(types.KeyboardButton('Передать номер телефона', True))
+	markup.add(types.KeyboardButton('Не передавать'))
+	msg = bot.send_message(message.chat.id, msg_text, reply_markup = markup)
+	bot.register_next_step_handler(msg, final_step)
 
 def final_step(message):
 
 	if type(message.contact) != type(None):
 		append_to_us(message.from_user.id, message.contact.phone_number, 'numb')
-		all = get_us(message.from_user.id).get_all()
 		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!', reply_markup = types.ReplyKeyboardRemove())
 		proc_us(message.from_user.id)
+		us_answers.remove(get_us(message.from_user.id))
 	elif message.text == 'Не передавать':
 		bot.send_message(message.chat.id, 'Нам будет труднее вас идентифицировать, но мы что-то придумаем')
+		proc_us(message.from_user.id)
+		us_answers.remove(get_us(message.from_user.id))
 	elif message.text.find('/start') >= 0:
 		start_msg(message)
 	else:
-		non_req_GNB(message, final_step)
+		msg = bot.send_message(message.chat.id, 'Используйте кнопки снизу!')
+		bot.register_next_step_handler(msg, final_step)
 
 
 
