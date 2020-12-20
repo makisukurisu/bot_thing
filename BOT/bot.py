@@ -80,10 +80,6 @@ def non_req_GNB(message, func):
 	msg = bot.send_message(message.chat.id, 'Вам следует нажимать на кнопки снизу.\n\nЕсли они не работают напишите нашей службе поддержки или /start', reply_markup = get_GNB_markup())
 	bot.register_next_step_handler(msg, func)
 
-def get_string(id, type = None):
-	None
-	#if type == 'Отлично':
-		#if get_us(id).type == 'all':
 
 def proc_us(id):
 	
