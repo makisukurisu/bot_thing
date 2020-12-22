@@ -1,5 +1,6 @@
 import telebot
 import sqlite3
+import datetime as dt
 from telebot import types
 
 bot = telebot.TeleBot('1447763558:AAHAnuDaqHbDLyvEruZSxSre408DBOB_7vU')
@@ -64,6 +65,8 @@ def get_us(id):
 	for x in us_answers:
 		if x.id == id:
 			return x
+	else:
+		return Noned
 
 def get_GNB_markup():
 	''' Good, neutral, bad markup '''
@@ -80,20 +83,23 @@ def non_req_GNB(message, func):
 	msg = bot.send_message(message.chat.id, 'Вам следует нажимать на кнопки снизу.\n\nЕсли они не работают напишите нашей службе поддержки или /start', reply_markup = get_GNB_markup())
 	bot.register_next_step_handler(msg, func)
 
-def get_string(id, type = None):
-	None
-	#if type == 'Отлично':
-		#if get_us(id).type == 'all':
-
 def proc_us(id):
 	
 	U_Info = get_us(id)
 	m_text = ['', '', '']
 	answ_var = ['Отлично', 'Хорошо', 'Плохо']
 	comp_text = []
+	table_names = ['Pos_Rev', 'Neu_Rev', 'Neg_Rev']
+	#object
+	res = c.execute("select Phone from Users where TG_Id = {}".format(U_Info.id))
+	res = res.fetchall()
+	if res != [(None,)] and U_Info.numb is None:
+		U_Info.numb = res[0][0]
+	elif res == [(None,)] and type(U_Info.numb) != type(None):
+		c.execute("update Users set Phone = '{}' where TG_Id = {}".format(U_Info.numb, U_Info.id))
+		db.commit()
 	for x in range(len(U_Info.answers)):
 		m_text[answ_var.index(U_Info.answers[x])] += quest[U_Info.about][x] + "\n"
-	print(m_text)
 	for x in m_text:
 		if x == "":
 			continue
@@ -107,6 +113,13 @@ def proc_us(id):
 			um = ""
 		msg = '{} - {} {}\nОставил новый отзыв:\n\n{}\n\nОценил {}\n{}\n\n{}'.format(U_Info.name, U_Info.numb, us,m_text[m_text.index(x)], answ_var[m_text.index(x)], U_Info.from_, um)
 		bot.send_message(chats_indx[m_text.index(x)], msg)
+		c.execute("insert into {} (U_Id, Text, Date) values ({}, '{}', '{}')".format(
+			table_names[m_text.index(x)],
+			U_Info.id,
+			U_Info.message,
+			dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+
+	db.commit()
 
 
 ###SQL Functions###
@@ -135,6 +148,10 @@ def start_msg(message):
 		us_answers.remove(get_us(message.from_user.id))
 	except:
 		None
+	b = c.execute("select * from Users where TG_Id = {}".format(message.from_user.id))
+	if len(b.fetchall()) == 0:
+		c.execute("insert into Users (Name, Surname, TG_Id) values ('{}', '{}', {})".format(message.from_user.first_name, message.from_user.last_name, message.from_user.id))
+		db.commit()
 	if len(a) > 1:
 		markup = types.ReplyKeyboardMarkup()
 		markup.add(types.KeyboardButton('Да, конечно'))
