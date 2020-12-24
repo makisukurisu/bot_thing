@@ -1,6 +1,9 @@
 import telebot
 import sqlite3
 import datetime as dt
+import schedule
+import time
+from threading import Thread
 from telebot import types
 
 bot = telebot.TeleBot('1447763558:AAHAnuDaqHbDLyvEruZSxSre408DBOB_7vU')
@@ -140,9 +143,79 @@ def get_chat_id(message):
 
 	bot.send_message(message.chat.id, 'Айди этого чата:\n<code>{}</code>'.format(message.chat.id), parse_mode = "HTML")
 
+def manage_msg(message):
+
+	markup = types.ReplyKeyboardMarkup(None, True)
+	markup.add(types.KeyboardButton('Статистика'))
+	markup.add(types.KeyboardButton('Добавить пост'))
+	markup.add(types.KeyboardButton('Управление пользователями'), types.KeyboardButton('Поиск отзывов'))
+	msg = bot.send_message(message.chat.id, 'Панель управления:', reply_markup = markup)
+	bot.register_for_reply(msg, manage_msg_1)
+
+def manage_msg_1(message):
+
+	lst = ['Добавить пост', 'Поиск отзывов', 'Управление пользователями', 'Статистика']
+	if message.text in lst:
+		if lst.index(message.text) == 0:
+			msg = bot.send_message(message.chat.id, 'Ответьте на это сообщение постом который надо запланировать.')
+			bot.register_for_reply(msg, sched_msg)
+		elif lst.index(message.text) == 1:
+			markup = types.ReplyKeyboardMarkup(None, True)
+			markup.add(types.KeyboardButton('По дате'))
+			markup.add(types.KeyboardButton('По номеру'))
+			markup.add(types.KeyboardButton('По айди отзыва'), types.KeyboardButton('По оценке'))
+			msg = bot.send_message(message.chat.id, 'Как будем искать?', reply_markup = markup)
+			bot.register_for_reply(msg, search_msg)
+		elif lst.index(message.text) == 2:
+			bot.send_message(message.chat.id, 'Укажите номер пользователя или его Telegram ID')
+		elif lst.index(message.text) == 3:
+			bot.send_message(message.chat.id, 'За последнюю неделю:\n{} положительных\n{} нейтральных\n{} негативных\n\n{} комментариев\n\nВсего: {} -- {} -- {}')
+	else:
+		manage_msg(message)
+
+def send_sched_msg(message, time):
+	
+	if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		bot.send_message(message.chat.id, 'Счед тут нада ({})'.format(message.message_id))
+		schedule.clear(message.message_id)
+
+def sched_msg(message):
+
+	msg = bot.send_message(message.chat.id, 'Если вы подтверждаете это сообщение - ответьте на него с датой и временем отправки!')
+	bot.register_for_reply(msg, conf_sched, message)
+
+def conf_sched(message, send_msg):
+	
+	try:
+		time = dt.datetime.fromisoformat(message.text + ":00")
+		if time.timestamp() < dt.datetime.now().timestamp():
+			msg = bot.send_message(message.chat.id, 'Было до этого!\n\nУкажите правильную дату и время ответив на это сообщение')
+			bot.register_for_reply(msg, conf_sched, send_msg)
+		else:
+			bot.send_message(message.chat.id, 'Окей! (Чтобы удалить отложенное сообщение: /del_sched <code>{}</code>)'.format(send_msg.message_id), parse_mode = 'html')
+			schedule.every(20).seconds.do(send_sched_msg, send_msg, time.timestamp()).tag(send_msg.message_id)
+	except Exception as E:
+		print(E)
+		msg = bot.send_message(message.chat.id, 'Не могу разобрать это сооющение, ответьте на это в таком формате:\n\nГод-Месяц-День Час:Минута')
+		bot.register_for_reply(msg, conf_sched, send_msg)
+
+def search_msg(message):
+
+	print(message.text)
+
+@bot.message_handler(commands = ['del_sched'])
+def del_sched(message):
+
+	if len(message.text.split()) == 2 and message.chat.id == -336427671:
+		schedule.clear(int(message.text.split()[1]))
+		bot.send_message(message.chat.id, 'Удалено отложенное сообщение')
+
 @bot.message_handler(commands = ['start'])
 def start_msg(message):
 
+	if message.chat.id == -336427671:
+		manage_msg(message)
+		return
 	a = message.text.split(' ')
 	try:
 		us_answers.remove(get_us(message.from_user.id))
@@ -150,7 +223,10 @@ def start_msg(message):
 		None
 	b = c.execute("select * from Users where TG_Id = {}".format(message.from_user.id))
 	if len(b.fetchall()) == 0:
-		c.execute("insert into Users (Name, Surname, TG_Id) values ('{}', '{}', {})".format(message.from_user.first_name, message.from_user.last_name, message.from_user.id))
+		c.execute("insert into Users (Name, Surname, TG_Id) values ('{}', '{}', {})".format(
+			message.from_user.first_name,
+			message.from_user.last_name,
+			message.from_user.id))
 		db.commit()
 	if len(a) > 1:
 		markup = types.ReplyKeyboardMarkup()
@@ -359,6 +435,18 @@ def final_step(message):
 		msg = bot.send_message(message.chat.id, 'Используйте кнопки снизу!')
 		bot.register_next_step_handler(msg, final_step)
 
+class MTread(Thread):
 
+	def __init__(self, name):
+		Thread.__init__(self)
+		self.name = name
+	def run(self):
+		while True:
+			schedule.run_pending()
+			time.sleep(1)
+
+name = 'schedule_thr'
+schedthr = MTread(name)
+schedthr.start()
 
 bot.polling()
