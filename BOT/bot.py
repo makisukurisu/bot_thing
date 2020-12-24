@@ -136,6 +136,12 @@ def get_msg_by_Id(id_, tab, message):
 	else:
 		bot.send_message(message.chat.id, 'asd')
 
+def get_msg_by_Date(tab = 'Neg_Rev', date = None):
+	print("select {}.*, Users.Name, Users.Phone from {} inner join Users on Users.TG_Id = {}.U_Id where date like '{}%'".format(tab, tab, tab, date))
+	c.execute("select {}.*, Users.Name, Users.Phone from {} inner join Users on Users.TG_Id = {}.U_Id where date like '{}%'".format(tab, tab, tab, date))
+	a = c.fetchall()
+	print(a)
+
 ###Bot handlers###
 
 @bot.message_handler(commands = ['chat_id'])
@@ -201,7 +207,72 @@ def conf_sched(message, send_msg):
 
 def search_msg(message):
 
-	print(message.text)
+	lst = ['По дате', 'По номеру', 'По айди отзыва', 'По оценке']
+	if message.text in lst:
+		if lst.index(message.text) == 0:
+			msg = bot.send_message(message.chat.id, 'Укажите дату ответив на это сообщение в формате ИСО (Год-Мессяц-Дата)')
+			bot.register_for_reply(msg, sch_date)
+		elif lst.index(message.text) == 1:
+			msg = bot.send_message(message.chat.id, 'Укажите номер в ответе на это сообщение')
+			bot.register_for_reply(msg, sch_numb)
+		elif lst.index(message.text) == 2:
+			msg = bot.send_message(message.chat.id, 'Укажите номер (МБ промежуток?) ответив на это сообщение')
+			bot.register_for_reply(msg, sch_id)
+		elif lst.index(message.text) == 3:
+			markup = get_GNB_markup()
+			markup.one_time_keyboard = True
+			msg = bot.send_message(message.chat.id, 'Укажите оценку из клавиатуры отвечая на это сообщение', reply_markup = markup)
+			bot.register_for_reply(msg, get_GNB_rev)
+	elif message.text == '/start':
+		manage_msg(message)
+	else:
+		message.text = 'Поиск отзывов'
+		manage_msg_1(message)
+
+def sch_date(message):
+
+	try:
+		date = dt.date.fromisoformat(message.text)
+		get_msg_by_Date(date = str(date))
+	except:
+		msg = bot.send_message(message.chat.id, 'Не могу понять эту дату, попробуйте ещё раз.')
+		bot.register_for_reply(msg, sch_date)
+
+def sch_numb(message):
+
+	try:
+		ph = message.text
+		if ph[0:3] != "380":
+			if ph[0] == '+':
+				ph = ph[1:]
+			else:
+				ph = "38"+ph
+		c.execute("select TG_Id from users where Phone = {}".format(ph))
+		a = c.fetchall()
+		c.execute("select * from Neg_Rev where U_Id = {}".format(a[0][0]))
+		b = c.fetchall()
+		print(b)
+	except:
+		None
+
+def sch_id(message):
+
+	c.execute("select * from Neg_Rev where Id = {}".format(message.text))
+	a = c.fetchall()
+	print(a)
+
+def get_GNB_rev(message):
+
+	if message.text in lst_GNB:
+
+		if lst_GNB.index(message.text) == 0:
+			c.execute('select * from Pos_Rev where Text not NULL')
+		elif lst_GNB.index(message.text) == 1:
+			c.execute('select * from Neu_Rev where Text not NULL')
+		elif lst_GNB.index(message.text) == 2:
+			c.execute('select * from Neg_Rev where Text not NULL')
+		a = c.fetchall()
+		print(a)
 
 @bot.message_handler(commands = ['del_sched'])
 def del_sched(message):
