@@ -116,11 +116,12 @@ def proc_us(id):
 			um = ""
 		msg = '{} - {} {}\nОставил новый отзыв:\n\n{}\n\nОценил {}\n{}\n\n{}'.format(U_Info.name, U_Info.numb, us,m_text[m_text.index(x)], answ_var[m_text.index(x)], U_Info.from_, um)
 		bot.send_message(chats_indx[m_text.index(x)], msg)
-		c.execute("insert into {} (U_Id, Text, Date) values ({}, '{}', '{}')".format(
+		c.execute("insert into {} (U_Id, Text, Date, About) values ({}, '{}', '{}', '{}')".format(
 			table_names[m_text.index(x)],
 			U_Info.id,
 			U_Info.message,
-			dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+			dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+			x))
 
 	db.commit()
 
@@ -249,9 +250,17 @@ def sch_numb(message):
 				ph = "38"+ph
 		c.execute("select TG_Id from users where Phone = {}".format(ph))
 		a = c.fetchall()
-		c.execute("select * from Neg_Rev where U_Id = {}".format(a[0][0]))
-		b = c.fetchall()
-		print(b)
+		msgs= ['', '', '']
+		table_names = ['Pos_Rev', 'Neu_Rev', 'Neg_Rev']
+		addi_names = ['Положительные:\n\n', 'Нейтральные:\n\n', 'Негативные:\n\n']
+		for x in range(3):		
+			c.execute("select {}.*, Name, Username from {} inner join Users on Users.TG_Id = {}.U_Id where U_Id = {}".format(table_names[x], table_names[x], table_names[x], a[0][0]))
+			b = c.fetchall()
+			for z in b:
+				if msgs[x] == '':
+					msgs[x] = addi_names[x]
+				msgs[x] += "Отзыв №{}\n{}\n{} (@{})\nОтзыв: {}\n\n".format(z[0], z[3], z[4], z[5], z[2])
+			bot.send_message(message.chat.id, msgs[x])
 	except:
 		None
 
@@ -294,10 +303,12 @@ def start_msg(message):
 		None
 	b = c.execute("select * from Users where TG_Id = {}".format(message.from_user.id))
 	if len(b.fetchall()) == 0:
-		c.execute("insert into Users (Name, Surname, TG_Id) values ('{}', '{}', {})".format(
+		c.execute("insert into Users (Name, Surname, TG_Id, Username) values ('{}', '{}', {}, '{}')".format(
 			message.from_user.first_name,
 			message.from_user.last_name,
-			message.from_user.id))
+			message.from_user.id,
+			message.from_user.username
+			))
 		db.commit()
 	if len(a) > 1:
 		markup = types.ReplyKeyboardMarkup()
