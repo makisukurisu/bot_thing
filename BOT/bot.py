@@ -4,7 +4,7 @@ import datetime as dt
 import schedule
 import time
 from threading import Thread
-from telebot import types
+from telebot import types, util
 
 bot = telebot.TeleBot('1447763558:AAHAnuDaqHbDLyvEruZSxSre408DBOB_7vU')
 db = sqlite3.connect('db.db', check_same_thread=False)
@@ -128,20 +128,30 @@ def proc_us(id):
 
 ###SQL Functions###
 
-def get_msg_by_Id(id_, tab, message):
-
-	c.execute("select Text, Users.Name, Users.Surname, Users.Phone, Users.Object from {} inner join Users on U_Id = Users.Id where id = {}".format(tab, id_))
-	a = c.fetchall()
-	if len(a) == 0:
-		bot.send_message(message.chat.id, 'Ошибка')
-	else:
-		bot.send_message(message.chat.id, 'asd')
-
-def get_msg_by_Date(tab = 'Neg_Rev', date = None):
-	print("select {}.*, Users.Name, Users.Phone from {} inner join Users on Users.TG_Id = {}.U_Id where date like '{}%'".format(tab, tab, tab, date))
-	c.execute("select {}.*, Users.Name, Users.Phone from {} inner join Users on Users.TG_Id = {}.U_Id where date like '{}%'".format(tab, tab, tab, date))
-	a = c.fetchall()
-	print(a)
+def get_msg_by_Date(message, date = None):
+	
+	msgs= ['', '', '']
+	table_names = ['Pos_Rev', 'Neu_Rev', 'Neg_Rev']
+	addi_names = ['Положительные:\n\n', 'Нейтральные:\n\n', 'Негативные:\n\n']
+	for x in range(3):
+		t = table_names[x]
+		c.execute("select {}.*, Users.Name, Users.Phone from {} inner join Users on Users.TG_Id = {}.U_Id where date like '{}%'".format(t, t, t, date))
+		a = c.fetchall()
+		if a == []:
+			continue
+		for z in a:
+			z = list(z)
+			if msgs[x] == '':
+				msgs[x] = addi_names[x]
+			if z[2] != 'None':
+				z[2] = "Отзыв: " + z[2]
+			else:
+				z[2] = ""
+			msgs[x] += "Отзыв №{}\n{}\n\nО:\n{}\n{} (@{})\n{}\n\n".format(z[0], z[3], z[4], z[5], z[6], z[2])
+		for y in util.split_string(msgs[x], 3000):
+			bot.send_message(message.chat.id, y)
+	if msgs == ['', '', '']:
+		bot.send_message(message.chat.id, 'За эту дату нет отзывов')
 
 ###Bot handlers###
 
@@ -174,9 +184,32 @@ def manage_msg_1(message):
 			msg = bot.send_message(message.chat.id, 'Как будем искать?', reply_markup = markup)
 			bot.register_for_reply(msg, search_msg)
 		elif lst.index(message.text) == 2:
-			bot.send_message(message.chat.id, 'Укажите номер пользователя или его Telegram ID')
+			markup = types.ForceReply()
+			msg = bot.send_message(message.chat.id, 'Укажите номер пользователя или его Telegram ID', reply_markup = markup)
+			bot.register_for_reply(msg, edit_us_msg)
 		elif lst.index(message.text) == 3:
-			bot.send_message(message.chat.id, 'За последнюю неделю:\n{} положительных\n{} нейтральных\n{} негативных\n\n{} комментариев\n\nВсего: {} -- {} -- {}')
+			table_names = ['Pos_Rev', 'Neu_Rev', 'Neg_Rev']
+			count_week = [0, 0, 0, 0]
+			count_all = [0, 0, 0]
+			for name in table_names:
+				c.execute("select count(Id) from {} where date between '{}' and '{}'".format(name, dt.date.today() - dt.timedelta(7), dt.date.today()))
+				a = c.fetchall()
+				count_week[table_names.index(name)] = a[0][0]
+				c.execute("select count(Id) from {} where (date between '{}' and '{}') and (Text != 'None')".format(name, dt.date.today() - dt.timedelta(7), dt.date.today()))
+				b = c.fetchall()
+				count_week[3] += int(b[0][0])
+				c.execute("select count(Id) from {}".format(name))
+				z = c.fetchall()
+				count_all[table_names.index(name)] = z[0][0]
+			bot.send_message(message.chat.id, 'За последнюю неделю:\n{} положительных\n{} нейтральных\n{} негативных\n\n{} комментариев\n\nВсего\n{} положительных\n{} нейтральных\n{} негативных'.format(
+				count_week[0],
+				count_week[1],
+				count_week[2],
+				count_week[3],
+				count_all[0],
+				count_all[1],
+				count_all[2]
+				))
 	else:
 		manage_msg(message)
 
@@ -234,54 +267,114 @@ def sch_date(message):
 
 	try:
 		date = dt.date.fromisoformat(message.text)
-		get_msg_by_Date(date = str(date))
-	except:
+		get_msg_by_Date(message, date = str(date))
+	except Exception as E:
+		print(E)
 		msg = bot.send_message(message.chat.id, 'Не могу понять эту дату, попробуйте ещё раз.')
 		bot.register_for_reply(msg, sch_date)
 
-def sch_numb(message):
-
+def send_lists(message, u_id):
+	
+	if u_id == -1:
+			bot.send_message(message.chat.id, 'Нет отзывов по указанному номеру')
+			return
 	try:
-		ph = message.text
-		if ph[0:3] != "380":
-			if ph[0] == '+':
-				ph = ph[1:]
-			else:
-				ph = "38"+ph
-		c.execute("select TG_Id from users where Phone = {}".format(ph))
-		a = c.fetchall()
 		msgs= ['', '', '']
 		table_names = ['Pos_Rev', 'Neu_Rev', 'Neg_Rev']
 		addi_names = ['Положительные:\n\n', 'Нейтральные:\n\n', 'Негативные:\n\n']
 		for x in range(3):		
-			c.execute("select {}.*, Name, Username from {} inner join Users on Users.TG_Id = {}.U_Id where U_Id = {}".format(table_names[x], table_names[x], table_names[x], a[0][0]))
+			c.execute("select {}.*, Name, Username from {} inner join Users on Users.TG_Id = {}.U_Id where U_Id = {}".format(table_names[x], table_names[x], table_names[x], u_id))
 			b = c.fetchall()
 			for z in b:
+				z = list(z)
 				if msgs[x] == '':
 					msgs[x] = addi_names[x]
-				msgs[x] += "Отзыв №{}\n{}\n{} (@{})\nОтзыв: {}\n\n".format(z[0], z[3], z[4], z[5], z[2])
-			bot.send_message(message.chat.id, msgs[x])
-	except:
+				if z[2] != 'None':
+					z[2] = "Отзыв: " + z[2]
+				else:
+					z[2] = ""
+				msgs[x] += "Отзыв №{}\n{}\n\nО:\n{}\n{} (@{})\n{}\n\n".format(z[0], z[3], z[4], z[5], z[6], z[2])
+			for y in util.split_string(msgs[x], 3000):
+				bot.send_message(message.chat.id, y)		
+	except ApiTelegramException:
 		None
+	except Exception as E:
+		bot.send_message(message.chat.id, E)
+		
+def sch_numb(message):
+
+	ph = message.text
+	if ph[0:3] != "380":
+		if ph[0] == '+':
+			ph = ph[1:]
+		else:
+			ph = "38"+ph
+	c.execute("select TG_Id from users where Phone = {}".format(ph))
+	a = c.fetchall()
+	try:
+		send_lists(message, a[0][0])
+	except:
+		send_lists(message, -1)
 
 def sch_id(message):
 
-	c.execute("select * from Neg_Rev where Id = {}".format(message.text))
 	a = c.fetchall()
-	print(a)
+	msgs = ['', '', '']
+	table_names = ['Pos_Rev', 'Neu_Rev', 'Neg_Rev']
+	addi_names = ['Положительные:\n\n', 'Нейтральные:\n\n', 'Негативные:\n\n']
+	try:
+		for x in range(3):
+			c.execute("select {}.*, Name, Username from {} inner join Users on Users.TG_Id = {}.U_Id where Id = {}".format(table_names[x], table_names[x], table_names[x], message.text))
+			z = c.fetchall()
+			if z == []:
+				continue
+			else:
+				z = list(z[0])
+			msgs[x] = addi_names[x]
+			if z[2] != 'None':
+				z[2] = "Отзыв: " + z[2]
+			else:
+				z[2] = ""
+			msgs[x] += "Отзыв №{}\n{}\n\nО:\n{}\n{} (@{})\n{}\n\n".format(z[0], z[3], z[4], z[5], z[6], z[2])
+			for y in util.split_string(msgs[x], 3000):
+					bot.send_message(message.chat.id, y)
+		if msgs == ['', '', '']:
+			bot.send_message(message.chat.id, 'Нет отзывов с таким айди')
+	except ApiTelegramException:
+		None
+	except Exception as E:
+		bot.send_message(message.chat.id, E)
 
 def get_GNB_rev(message):
 
 	if message.text in lst_GNB:
 
+		addi_names = ['Положительные:\n\n', 'Нейтральные:\n\n', 'Негативные:\n\n']
+
 		if lst_GNB.index(message.text) == 0:
-			c.execute('select * from Pos_Rev where Text not NULL')
+			c.execute('select Pos_Rev.*, Name, Username from Pos_Rev inner join Users on Users.TG_Id = Pos_Rev.U_Id')
+			addi_names = addi_names[0]
 		elif lst_GNB.index(message.text) == 1:
-			c.execute('select * from Neu_Rev where Text not NULL')
+			c.execute('select Neu_Rev.*, Name, Username from Neu_Rev inner join Users on Users.TG_Id = Neu_Rev.U_Id')
+			addi_names = addi_names[1]
 		elif lst_GNB.index(message.text) == 2:
-			c.execute('select * from Neg_Rev where Text not NULL')
+			c.execute('select Neg_Rev.*, Name, Username from Neg_Rev inner join Users on Users.TG_Id = Neg_Rev.U_Id')
+			addi_names = addi_names[2]
 		a = c.fetchall()
-		print(a)
+		if a == []:
+			return
+		msg = ''
+		for z in a:
+			z = list(z)
+			if msg == '':
+				msg = addi_names
+			if z[2] != 'None':
+				z[2] = "Отзыв: " + z[2]
+			else:
+				z[2] = ""
+			msg += "Отзыв №{}\n{}\n\nО:\n{}\n{} (@{})\n{}\n\n".format(z[0], z[3], z[4], z[5], z[6], z[2])
+		for y in util.split_string(msg, 3000):
+			bot.send_message(message.chat.id, y)
 
 @bot.message_handler(commands = ['del_sched'])
 def del_sched(message):
