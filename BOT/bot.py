@@ -86,7 +86,7 @@ def non_req_GNB(message, func):
 	msg = bot.send_message(message.chat.id, 'Вам следует нажимать на кнопки снизу.\n\nЕсли они не работают напишите нашей службе поддержки или /start', reply_markup = get_GNB_markup())
 	bot.register_next_step_handler(msg, func)
 
-def proc_us(id):
+def proc_us(id, to_us):
 	
 	U_Info = get_us(id)
 	m_text = ['', '', '']
@@ -111,18 +111,21 @@ def proc_us(id):
 		else:
 			us = ""
 		if U_Info.message is not None:
-			um = "Сообщение: {}".format(U_Info.message)
+			um = "\nСообщение: {}\n".format(U_Info.message)
 		else:
 			um = ""
-		msg = '{} - {} {}\nОставил новый отзыв:\n\n{}\n\nОценил {}\n{}\n\n{}'.format(U_Info.name, U_Info.numb, us,m_text[m_text.index(x)], answ_var[m_text.index(x)], U_Info.from_, um)
-		bot.send_message(chats_indx[m_text.index(x)], msg)
-		c.execute("insert into {} (U_Id, Text, Date, About) values ({}, '{}', '{}', '{}')".format(
+		r_id = c.execute("insert into Ids (For) values ('{}')".format(table_names[m_text.index(x)]))		
+		r_id = r_id.lastrowid
+		c.execute("insert into {} (Id, U_Id, Text, Date, About) values ({}, {}, '{}', '{}', '{}')".format(
 			table_names[m_text.index(x)],
+			r_id,
 			U_Info.id,
 			U_Info.message,
 			dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
 			x))
-
+		msg = '{} - {} {}\nОставил новый отзыв:\n{}\nОценил {}\n{}{}Номер отзыва: {}'.format(U_Info.name, U_Info.numb, us,m_text[m_text.index(x)], answ_var[m_text.index(x)], U_Info.from_, um, r_id)
+		bot.send_message(chats_indx[m_text.index(x)], msg)
+		bot.send_message(to_us, 'Спасибо за ваш отзыв №{} о:\n{}'.format(r_id, x))
 	db.commit()
 
 
@@ -192,10 +195,10 @@ def manage_msg_1(message):
 			count_week = [0, 0, 0, 0]
 			count_all = [0, 0, 0]
 			for name in table_names:
-				c.execute("select count(Id) from {} where date between '{}' and '{}'".format(name, dt.date.today() - dt.timedelta(7), dt.date.today()))
+				c.execute("select count(Id) from {} where date between '{}' and '{}'".format(name, dt.date.today() - dt.timedelta(7), dt.date.today() + dt.timedelta(1)))
 				a = c.fetchall()
 				count_week[table_names.index(name)] = a[0][0]
-				c.execute("select count(Id) from {} where (date between '{}' and '{}') and (Text != 'None')".format(name, dt.date.today() - dt.timedelta(7), dt.date.today()))
+				c.execute("select count(Id) from {} where (date between '{}' and '{}') and (Text != 'None')".format(name, dt.date.today() - dt.timedelta(7), dt.date.today() + dt.timedelta(1)))
 				b = c.fetchall()
 				count_week[3] += int(b[0][0])
 				c.execute("select count(Id) from {}".format(name))
@@ -215,9 +218,34 @@ def manage_msg_1(message):
 
 def send_sched_msg(message, time):
 	
-	if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
-		bot.send_message(message.chat.id, 'Счед тут нада ({})'.format(message.message_id))
-		schedule.clear(message.message_id)
+	if message.animation is not None:
+		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+			bot.send_animation(message.chat.id, message.animation.file_id, caption = message.caption)
+			schedule.clear(message.message_id)
+	elif message.audio is not None:
+		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+			bot.send_audio(message.chat.id, message.audio.file_id, message.caption)
+			schedule.clear(message.message_id)
+	elif message.photo is not None:
+		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+			bot.send_photo(message.chat.id, message.photo[-1].file_id, message.caption)
+			schedule.clear(message.message_id)
+	elif message.sticker is not None:
+		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+			bot.send_sticker(message.chat.id, message.sticker.file_id)
+			schedule.clear(message.message_id)
+	elif message.text is not None:
+		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+			bot.send_message(message.chat.id, message.text)
+			schedule.clear(message.message_id)
+	elif message.video is not None:
+		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+			bot.send_video(message.chat.id, message.video.file_id, caption = message.caption)
+			schedule.clear(message.message_id)
+	elif message.voice is not None:
+		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+			bot.send_voice(message.chat.id, message.voice.file_id)
+	
 
 def sched_msg(message):
 
@@ -233,7 +261,7 @@ def conf_sched(message, send_msg):
 			bot.register_for_reply(msg, conf_sched, send_msg)
 		else:
 			bot.send_message(message.chat.id, 'Окей! (Чтобы удалить отложенное сообщение: /del_sched <code>{}</code>)'.format(send_msg.message_id), parse_mode = 'html')
-			schedule.every(20).seconds.do(send_sched_msg, send_msg, time.timestamp()).tag(send_msg.message_id)
+			schedule.every(10).seconds.do(send_sched_msg, send_msg, time.timestamp()).tag(send_msg.message_id)
 	except Exception as E:
 		print(E)
 		msg = bot.send_message(message.chat.id, 'Не могу разобрать это сооющение, ответьте на это в таком формате:\n\nГод-Месяц-День Час:Минута')
@@ -250,7 +278,7 @@ def search_msg(message):
 			msg = bot.send_message(message.chat.id, 'Укажите номер в ответе на это сообщение')
 			bot.register_for_reply(msg, sch_numb)
 		elif lst.index(message.text) == 2:
-			msg = bot.send_message(message.chat.id, 'Укажите номер (МБ промежуток?) ответив на это сообщение')
+			msg = bot.send_message(message.chat.id, 'Укажите номер ответив на это сообщение')
 			bot.register_for_reply(msg, sch_id)
 		elif lst.index(message.text) == 3:
 			markup = get_GNB_markup()
@@ -352,13 +380,13 @@ def get_GNB_rev(message):
 		addi_names = ['Положительные:\n\n', 'Нейтральные:\n\n', 'Негативные:\n\n']
 
 		if lst_GNB.index(message.text) == 0:
-			c.execute('select Pos_Rev.*, Name, Username from Pos_Rev inner join Users on Users.TG_Id = Pos_Rev.U_Id')
+			c.execute("select Pos_Rev.*, Name, Username from Pos_Rev inner join Users on Users.TG_Id = Pos_Rev.U_Id where date between '{}' and '{}'".format(dt.date.today() - dt.timedelta(7), dt.date.today() + dt.timedelta(1)))
 			addi_names = addi_names[0]
 		elif lst_GNB.index(message.text) == 1:
-			c.execute('select Neu_Rev.*, Name, Username from Neu_Rev inner join Users on Users.TG_Id = Neu_Rev.U_Id')
+			c.execute("select Neu_Rev.*, Name, Username from Neu_Rev inner join Users on Users.TG_Id = Neu_Rev.U_Id where date between '{}' and '{}'".format(dt.date.today() - dt.timedelta(7), dt.date.today()  + dt.timedelta(1)))
 			addi_names = addi_names[1]
 		elif lst_GNB.index(message.text) == 2:
-			c.execute('select Neg_Rev.*, Name, Username from Neg_Rev inner join Users on Users.TG_Id = Neg_Rev.U_Id')
+			c.execute("select Neg_Rev.*, Name, Username from Neg_Rev inner join Users on Users.TG_Id = Neg_Rev.U_Id where date between '{}' and '{}'".format(dt.date.today() - dt.timedelta(7), dt.date.today()  + dt.timedelta(1)))
 			addi_names = addi_names[2]
 		a = c.fetchall()
 		if a == []:
@@ -597,12 +625,12 @@ def final_step(message):
 
 	if type(message.contact) != type(None):
 		append_to_us(message.from_user.id, message.contact.phone_number, 'numb')
-		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!', reply_markup = types.ReplyKeyboardRemove())
-		proc_us(message.from_user.id)
+		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!\n\n/start', reply_markup = types.ReplyKeyboardRemove())
+		proc_us(message.from_user.id, message.chat.id)
 		us_answers.remove(get_us(message.from_user.id))
 	elif message.text == 'Не передавать':
-		bot.send_message(message.chat.id, 'Нам будет труднее вас идентифицировать, но мы что-то придумаем')
-		proc_us(message.from_user.id)
+		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!\n\n/start', reply_markup = types.ReplyKeyboardRemove())
+		proc_us(message.from_user.id, to_us)
 		us_answers.remove(get_us(message.from_user.id))
 	elif message.text.find('/start') >= 0:
 		start_msg(message)
