@@ -216,6 +216,10 @@ def manage_msg_1(message):
 	else:
 		manage_msg(message)
 
+def edit_us_msg(message):
+
+	None
+
 def send_sched_msg(message, time):
 	
 	if message.animation is not None:
@@ -581,7 +585,7 @@ def concl_msg(message):
 			markup = types.ReplyKeyboardMarkup()
 			markup.add(types.KeyboardButton('Да'))
 			markup.add(types.KeyboardButton('Нет'))
-			msg = bot.send_message(message.chat.id, 'Вам что-то не понравилось, нам комментарий?', reply_markup = markup)
+			msg = bot.send_message(message.chat.id, 'Вам что-то не понравилось, оставите нам комментарий?', reply_markup = markup)
 			bot.register_next_step_handler(msg, get_msg_about)
 		else:
 			message.text = "-1testbug"
@@ -603,6 +607,12 @@ def get_msg_about(message):
 		non_req_GNB(message, get_msg_about)
 def get_numb_subm(message):
 
+	c.execute("select phone from Users where TG_Id = {}".format(message.from_user.id))
+	a = c.fetchall()
+	if a != []:
+		message.text = 'Не передавать'
+		final_step(message)
+		return
 	msg_text = ''
 	if message.text == 'Нет':
 		msg_text = 'Сожалеем что наш сервис вас не устроил.'
@@ -626,11 +636,11 @@ def final_step(message):
 	if type(message.contact) != type(None):
 		append_to_us(message.from_user.id, message.contact.phone_number, 'numb')
 		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!\n\n/start', reply_markup = types.ReplyKeyboardRemove())
-		proc_us(message.from_user.id, message.chat.id)
+		proc_us(message.from_user.id, message.from_user.id)
 		us_answers.remove(get_us(message.from_user.id))
 	elif message.text == 'Не передавать':
 		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!\n\n/start', reply_markup = types.ReplyKeyboardRemove())
-		proc_us(message.from_user.id, to_us)
+		proc_us(message.from_user.id, message.from_user.id)
 		us_answers.remove(get_us(message.from_user.id))
 	elif message.text.find('/start') >= 0:
 		start_msg(message)
