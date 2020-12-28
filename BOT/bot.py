@@ -1,8 +1,9 @@
 import telebot
 import sqlite3
-import datetime as dt
+import random
 import schedule
 import time
+import datetime as dt
 from threading import Thread
 from telebot import types, util
 
@@ -155,6 +156,8 @@ def get_msg_by_Date(message, date = None):
 			bot.send_message(message.chat.id, y)
 	if msgs == ['', '', '']:
 		bot.send_message(message.chat.id, 'За эту дату нет отзывов')
+	message.text = '/start'
+	start_msg(message)
 
 ###Bot handlers###
 
@@ -213,42 +216,231 @@ def manage_msg_1(message):
 				count_all[1],
 				count_all[2]
 				))
+			message.text = '/start'
+			start_msg(message)
 	else:
 		manage_msg(message)
 
+def send_us_info_by(message, a):
+
+	try:
+		if a != []:
+				a = list(a[0])
+				markup = types.ReplyKeyboardMarkup(None, True, True)
+				markup.add(types.KeyboardButton('Изменить Имя'))
+				markup.add(types.KeyboardButton('Изменить Номер'))
+				markup.add(types.KeyboardButton('Изменить Участок'))
+				markup.add(types.KeyboardButton('Удалить запись'))
+				if a[5] != None:
+					a[5] = '@' + a[5]
+				else:
+					a[5] = ''
+				if a[4] != None:
+					a[4] = 'Участок: ' + a[4]
+				else:
+					if a[4] == 'None':
+						a[4] = ''
+					else:
+						print(a[4])
+				if a[3] != None:
+					a[3] = 'Номер: ' + a[3]
+				else:
+					a[3] = ''
+				if a[2] == None:
+					a[2] = ''
+				msg = bot.send_message(message.chat.id, 'Пользователь: {}\n{} {}\n\n{}\n{}\n{}'.format(a[0], a[1], a[2], a[3], a[5], a[4]), reply_markup = markup)
+				bot.register_for_reply(msg, proc_edit_us, a[0])
+				return True
+	except:
+		return False
+
+def proc_edit_us(message, u_id):
+
+	lst = ['Изменить Имя', 'Изменить Номер', 'Изменить Участок', 'Удалить запись']
+
+	if message.text in lst:
+
+		if lst.index(message.text) == 0:
+			markup = types.ForceReply()
+			msg = bot.send_message(message.chat.id, 'Укажите новые данные для имени и фамилии (через пробел)', reply_markup = markup)
+			bot.register_for_reply(msg, edit_us_prof, 0, u_id)
+		elif lst.index(message.text) == 1:
+			markup = types.ForceReply()
+			msg = bot.send_message(message.chat.id, 'Укажите новый номер пользователя', reply_markup = markup)
+			bot.register_for_reply(msg, edit_us_prof, 1, u_id)
+		elif lst.index(message.text) == 2:
+			markup = types.ForceReply()
+			msg = bot.send_message(message.chat.id, 'Укажите новый участок пользователя', reply_markup = markup)
+			bot.register_for_reply(msg, edit_us_prof, 2, u_id)
+		elif lst.index(message.text) == 3:
+			markup = types.ReplyKeyboardMarkup(None, True, True)
+			rand_pic = random.randint(0, 3)
+			for x in range(0, 4):
+				if x != rand_pic:
+					markup.add(types.KeyboardButton('Отмена'))
+				else:
+					markup.add(types.KeyboardButton('Подтверждаю'))
+			msg = bot.send_message(message.chat.id, 'Подтверждаете удаление? (Человек не будет больше получать уведомления и тд!)', reply_markup = markup)
+			bot.register_for_reply(msg, del_user_prof, u_id)
+
+def del_user_prof(message, u_id):
+
+	if message.text == 'Подтверждаю':
+		c.execute('delete from users where TG_Id = {}'.format(u_id))
+		for x in ['Pos_Rev', 'Neu_Rev', 'Neg_Rev']:
+			c.execute('delete from {} where U_Id = {}'.format(x, u_id))
+		db.commit()
+		bot.send_message(message.chat.id, 'Успешно удалён пользователь')
+	message.text = '/start'
+	start_msg(message)
+
+def edit_us_prof(message, what, u_id):
+
+	what_tab = ['', 'phone', 'object']
+
+	if what == 0:
+		if len(message.text.split()) > 1:
+			sur = ", Surname = '{}'".format(message.text.split()[1])
+		else:
+			sur = ''
+		c.execute("update Users set Name = '{}'{} where TG_Id = {}".format(message.text.split()[0], sur, u_id))
+	else:
+		if what == 1:
+			if message.text[0] == '0':
+				paste = "38" + message.text
+			elif message.text[0] == '+':
+				paste = message.text[1:]
+			elif message.text[0:3] == '380':
+				paste = message.text
+		else:
+			paste = message.text
+		c.execute("update Users set {} = '{}' where TG_Id = {}".format(what_tab[what], paste, u_id))
+	db.commit()
+	message.text = '/start'
+	start_msg(message)
+
 def edit_us_msg(message):
 
-	None
+	if message.text[0] in ['0', '+'] or message.text[0:3] == '380':
+		if message.text[0] == '0':
+			ph = "38" + message.text
+		elif message.text[0] == '+':
+			ph = message.text[1:]
+		c.execute("select * from Users where Phone = '{}'".format(ph))
+		a = c.fetchall()
+		if send_us_info_by(message, a) == True:
+			None
+		else:
+			bot.send_message(message.chat.id, 'Пользователя с таким номером нет')
+			message.text = '/start'
+			start_msg(message)
+	else:
+		try:
+			int(message.text)
+		except:
+			message.text = '-1'
+		c.execute("select * from Users where TG_Id = {}".format(message.text))
+		a = c.fetchall()
+		if send_us_info_by(message, a) == True:
+			None
+		else:
+			bot.send_message(message.chat.id, 'Пользователя с таким Id нет')
+			message.text = '/start'
+			start_msg(message)
 
+def html_text(text, entities):
+        """
+        Author: @sviat9440
+        Updaters: @badiboy
+		"""
+
+        if not entities:
+            return text
+
+        _subs = {
+            "bold"     : "<b>{text}</b>",
+            "italic"   : "<i>{text}</i>",
+            "pre"      : "<pre>{text}</pre>",
+            "code"     : "<code>{text}</code>",
+            #"url"      : "<a href=\"{url}\">{text}</a>", # @badiboy plain URLs have no text and do not need tags
+            "text_link": "<a href=\"{url}\">{text}</a>",
+            "strikethrough": "<s>{text}</s>",
+            "underline":     "<u>{text}</u>"
+ 	    }
+         
+        utf16_text = text.encode("utf-16-le")
+        html_text = ""
+
+        def func(upd_text, subst_type=None, url=None, user=None):
+            upd_text = upd_text.decode("utf-16-le")
+            if subst_type == "text_mention":
+                subst_type = "text_link"
+                url = "tg://user?id={0}".format(user.id)
+            elif subst_type == "mention":
+                url = "https://t.me/{0}".format(upd_text[1:])
+            upd_text = upd_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            if not subst_type or not _subs.get(subst_type):
+                return upd_text
+            subs = _subs.get(subst_type)
+            return subs.format(text=upd_text, url=url)
+
+        offset = 0
+        for entity in entities:
+            if entity.offset > offset:
+                html_text += func(utf16_text[offset * 2 : entity.offset * 2])
+                offset = entity.offset
+                html_text += func(utf16_text[offset * 2 : (offset + entity.length) * 2], entity.type, entity.url, entity.user)
+                offset += entity.length
+            elif entity.offset == offset:
+                html_text += func(utf16_text[offset * 2 : (offset + entity.length) * 2], entity.type, entity.url, entity.user)
+                offset += entity.length
+            else:
+                # TODO: process nested entities from Bot API 4.5
+                # Now ignoring them
+                pass
+        if offset * 2 < len(utf16_text):
+            html_text += func(utf16_text[offset * 2:])
+        return html_text
+			
 def send_sched_msg(message, time):
 	
+	c.execute("select TG_Id from Users")
+	a = c.fetchall()
 	if message.animation is not None:
 		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
-			bot.send_animation(message.chat.id, message.animation.file_id, caption = message.caption)
+			for x in a:
+				bot.send_animation(x[0], message.animation.file_id, caption = html_text(message.caption, message.caption_entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.audio is not None:
 		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
-			bot.send_audio(message.chat.id, message.audio.file_id, message.caption)
+			for x in a:
+				bot.send_audio(x[0], message.audio.file_id, caption = html_text(message.caption, message.caption_entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.photo is not None:
 		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
-			bot.send_photo(message.chat.id, message.photo[-1].file_id, message.caption)
+			for x in a:
+				bot.send_photo(x[0], message.photo[-1].file_id, caption = html_text(message.caption, message.caption_entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.sticker is not None:
 		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
-			bot.send_sticker(message.chat.id, message.sticker.file_id)
-			schedule.clear(message.message_id)
-	elif message.text is not None:
+			for x in a:
+				bot.send_sticker(x[0], message.sticker.file_id)
+		schedule.clear(message.message_id)
+	elif	 message.text is not None:
 		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
-			bot.send_message(message.chat.id, message.text)
+			for x in a:
+					bot.send_message(x[0], html_text(message.text, message.entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.video is not None:
 		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
-			bot.send_video(message.chat.id, message.video.file_id, caption = message.caption)
+			for x in a:
+				bot.send_video(x[0], message.video.file_id, caption = html_text(message.caption, message.caption_entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.voice is not None:
 		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
-			bot.send_voice(message.chat.id, message.voice.file_id)
+			for x in a:
+				bot.send_voice(x[0], message.voice.file_id)
+			schedule.clear(message.message_id)
 	
 
 def sched_msg(message):
@@ -266,6 +458,8 @@ def conf_sched(message, send_msg):
 		else:
 			bot.send_message(message.chat.id, 'Окей! (Чтобы удалить отложенное сообщение: /del_sched <code>{}</code>)'.format(send_msg.message_id), parse_mode = 'html')
 			schedule.every(10).seconds.do(send_sched_msg, send_msg, time.timestamp()).tag(send_msg.message_id)
+			message.text = '/start'
+			start_msg(message)
 	except Exception as E:
 		print(E)
 		msg = bot.send_message(message.chat.id, 'Не могу разобрать это сооющение, ответьте на это в таком формате:\n\nГод-Месяц-День Час:Минута')
@@ -276,13 +470,16 @@ def search_msg(message):
 	lst = ['По дате', 'По номеру', 'По айди отзыва', 'По оценке']
 	if message.text in lst:
 		if lst.index(message.text) == 0:
-			msg = bot.send_message(message.chat.id, 'Укажите дату ответив на это сообщение в формате ИСО (Год-Мессяц-Дата)')
+			markup = types.ForceReply()
+			msg = bot.send_message(message.chat.id, 'Укажите дату ответив на это сообщение в формате ИСО (Год-Мессяц-Дата)', reply_markup = markup)
 			bot.register_for_reply(msg, sch_date)
 		elif lst.index(message.text) == 1:
-			msg = bot.send_message(message.chat.id, 'Укажите номер в ответе на это сообщение')
+			markup = types.ForceReply()
+			msg = bot.send_message(message.chat.id, 'Укажите номер в ответе на это сообщение', reply_markup = markup)
 			bot.register_for_reply(msg, sch_numb)
 		elif lst.index(message.text) == 2:
-			msg = bot.send_message(message.chat.id, 'Укажите номер ответив на это сообщение')
+			markup = types.ForceReply()
+			msg = bot.send_message(message.chat.id, 'Укажите номер ответив на это сообщение', reply_markup = markup)
 			bot.register_for_reply(msg, sch_id)
 		elif lst.index(message.text) == 3:
 			markup = get_GNB_markup()
@@ -309,6 +506,8 @@ def send_lists(message, u_id):
 	
 	if u_id == -1:
 			bot.send_message(message.chat.id, 'Нет отзывов по указанному номеру')
+			message.text = '/start'
+			start_msg(message)
 			return
 	try:
 		msgs= ['', '', '']
@@ -327,9 +526,9 @@ def send_lists(message, u_id):
 					z[2] = ""
 				msgs[x] += "Отзыв №{}\n{}\n\nО:\n{}\n{} (@{})\n{}\n\n".format(z[0], z[3], z[4], z[5], z[6], z[2])
 			for y in util.split_string(msgs[x], 3000):
-				bot.send_message(message.chat.id, y)		
-	except ApiTelegramException:
-		None
+				bot.send_message(message.chat.id, y)
+		message.text = '/start'
+		start_msg(message)
 	except Exception as E:
 		bot.send_message(message.chat.id, E)
 		
@@ -407,6 +606,8 @@ def get_GNB_rev(message):
 			msg += "Отзыв №{}\n{}\n\nО:\n{}\n{} (@{})\n{}\n\n".format(z[0], z[3], z[4], z[5], z[6], z[2])
 		for y in util.split_string(msg, 3000):
 			bot.send_message(message.chat.id, y)
+		message.text = '/start'
+		start_msg(message)
 
 @bot.message_handler(commands = ['del_sched'])
 def del_sched(message):
@@ -420,6 +621,9 @@ def start_msg(message):
 
 	if message.chat.id == -336427671:
 		manage_msg(message)
+		return
+	if message.chat.type != 'private':
+		bot.send_message(message.chat.id, 'К сожалению я не могу работать в групповых чатах. Напишите мне в личные сообщения.')
 		return
 	a = message.text.split(' ')
 	try:
@@ -609,7 +813,8 @@ def get_numb_subm(message):
 
 	c.execute("select phone from Users where TG_Id = {}".format(message.from_user.id))
 	a = c.fetchall()
-	if a != []:
+	print(a)
+	if a != [(None, )]:
 		message.text = 'Не передавать'
 		final_step(message)
 		return
@@ -634,14 +839,18 @@ def get_numb_subm(message):
 def final_step(message):
 
 	if type(message.contact) != type(None):
-		append_to_us(message.from_user.id, message.contact.phone_number, 'numb')
-		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!\n\n/start', reply_markup = types.ReplyKeyboardRemove())
+		append_to_us(message.from_user.id, message.contact.phone_number[1:], 'numb')
+		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!', reply_markup = types.ReplyKeyboardRemove())
 		proc_us(message.from_user.id, message.from_user.id)
 		us_answers.remove(get_us(message.from_user.id))
+		message.text = '/start'
+		start_msg(message)
 	elif message.text == 'Не передавать':
 		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!\n\n/start', reply_markup = types.ReplyKeyboardRemove())
 		proc_us(message.from_user.id, message.from_user.id)
 		us_answers.remove(get_us(message.from_user.id))
+		message.text = '/start'
+		start_msg(message)
 	elif message.text.find('/start') >= 0:
 		start_msg(message)
 	else:
