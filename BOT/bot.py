@@ -139,7 +139,7 @@ def get_msg_by_Date(message, date = None):
 	addi_names = ['Положительные:\n\n', 'Нейтральные:\n\n', 'Негативные:\n\n']
 	for x in range(3):
 		t = table_names[x]
-		c.execute("select {}.*, Users.Name, Users.Phone from {} inner join Users on Users.TG_Id = {}.U_Id where date like '{}%'".format(t, t, t, date))
+		c.execute("select {}.*, Users.Name, Users.Phone, Users.Username from {} inner join Users on Users.TG_Id = {}.U_Id where date like '{}%'".format(t, t, t, date))
 		a = c.fetchall()
 		if a == []:
 			continue
@@ -151,7 +151,13 @@ def get_msg_by_Date(message, date = None):
 				z[2] = "Отзыв: " + z[2]
 			else:
 				z[2] = ""
-			msgs[x] += "Отзыв №{}\n{}\n\nО:\n{}\n{} (@{})\n{}\n\n".format(z[0], z[3], z[4], z[5], z[6], z[2])
+			if z[6] == 'None':
+				z[6] = ''
+			if z[7] != 'None':
+				z[7] = '(@{})'.format(z[7])
+			else:
+				z[7] = ''
+			msgs[x] += "Отзыв №{}\n{}\n\nО:\n{}\n{} {} {}\n{}\n\n".format(z[0], z[3], z[4], z[5], z[6], z[7], z[2])
 		for y in util.split_string(msgs[x], 3000):
 			bot.send_message(message.chat.id, y)
 	if msgs == ['', '', '']:
@@ -516,6 +522,7 @@ def send_lists(message, u_id):
 		for x in range(3):		
 			c.execute("select {}.*, Name, Username from {} inner join Users on Users.TG_Id = {}.U_Id where U_Id = {}".format(table_names[x], table_names[x], table_names[x], u_id))
 			b = c.fetchall()
+			print(b)
 			for z in b:
 				z = list(z)
 				if msgs[x] == '':
@@ -555,7 +562,7 @@ def sch_id(message):
 	addi_names = ['Положительные:\n\n', 'Нейтральные:\n\n', 'Негативные:\n\n']
 	try:
 		for x in range(3):
-			c.execute("select {}.*, Name, Username from {} inner join Users on Users.TG_Id = {}.U_Id where Id = {}".format(table_names[x], table_names[x], table_names[x], message.text))
+			c.execute("select {}.*, Name, Username, Phone from {} inner join Users on Users.TG_Id = {}.U_Id where Id = {}".format(table_names[x], table_names[x], table_names[x], message.text))
 			z = c.fetchall()
 			if z == []:
 				continue
@@ -566,13 +573,20 @@ def sch_id(message):
 				z[2] = "Отзыв: " + z[2]
 			else:
 				z[2] = ""
-			msgs[x] += "Отзыв №{}\n{}\n\nО:\n{}\n{} (@{})\n{}\n\n".format(z[0], z[3], z[4], z[5], z[6], z[2])
+			if z[7] == 'None':
+				z[7] = ''
+			if z[6] != 'None':
+				z[6] = '(@{})'.format(z[6])
+			else:
+				z[6] = ''
+			print(z)
+			msgs[x] += "Отзыв №{}\n{}\n\nО:\n{}\n{} {} {}\n{}\n{}\n\n".format(z[0], z[3], z[4], z[5], z[7], z[6], z[1], z[2])
 			for y in util.split_string(msgs[x], 3000):
 					bot.send_message(message.chat.id, y)
 		if msgs == ['', '', '']:
 			bot.send_message(message.chat.id, 'Нет отзывов с таким айди')
-	except ApiTelegramException:
-		None
+		message.text = '/start'
+		start_msg(message)
 	except Exception as E:
 		bot.send_message(message.chat.id, E)
 
@@ -846,7 +860,7 @@ def final_step(message):
 		message.text = '/start'
 		start_msg(message)
 	elif message.text == 'Не передавать':
-		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!\n\n/start', reply_markup = types.ReplyKeyboardRemove())
+		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!', reply_markup = types.ReplyKeyboardRemove())
 		proc_us(message.from_user.id, message.from_user.id)
 		us_answers.remove(get_us(message.from_user.id))
 		message.text = '/start'
