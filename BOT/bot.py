@@ -362,6 +362,8 @@ def edit_us_msg(message):
 			ph = "38" + message.text
 		elif message.text[0] == '+':
 			ph = message.text[1:]
+		elif message.text[0:3] == '380':
+			ph = message.text			
 		c.execute("select * from Users where Phone = '{}'".format(ph))
 		a = c.fetchall()
 		if send_us_info_by(message, a) == True:
