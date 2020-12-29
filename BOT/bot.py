@@ -16,6 +16,9 @@ WEBHOOK_LISTEN = '45.32.159.240'
 WEBHOOK_SSL_CERT = './webhook_cert.pem'
 WEBHOOK_SSL_PRIV = './webhook_pkey.pem'
 
+WEBHOOK_URL_BASE = "https://{}:{}".format(WEBHOOK_HOST, WEBHOOK_PORT)
+WEBHOOK_URL_PATH = "/{}/".format(API_TOKEN)
+
 db = sqlite3.connect('db.db', check_same_thread=False)
 c = db.cursor()
 
