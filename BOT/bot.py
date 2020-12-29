@@ -6,10 +6,37 @@ import time
 import datetime as dt
 from threading import Thread
 from telebot import types, util
+import ssl
+from aiohttp import web
 
-bot = telebot.TeleBot('1447763558:AAHAnuDaqHbDLyvEruZSxSre408DBOB_7vU')
+API_TOKEN = "1447763558:AAHAnuDaqHbDLyvEruZSxSre408DBOB_7vU"
+WEBHOOK_HOST = "45.32.159.240"
+WEBHOOK_PORT = 8443
+WEBHOOK_LISTEN = '45.32.159.240'
+WEBHOOK_SSL_CERT = './webhook_cert.pem'
+WEBHOOK_SSL_PRIV = './webhook_pkey.pem'
+
 db = sqlite3.connect('db.db', check_same_thread=False)
 c = db.cursor()
+
+bot = telebot.TeleBot(API_TOKEN)
+
+app = web.Application()
+app.shutdown()
+app.cleanup()
+
+
+async def handle(request):
+    if request.match_info.get('token') == bot.token:
+        request_body_dict = await request.json()
+        update = telebot.types.Update.de_json(request_body_dict)
+        bot.process_new_updates([update])
+        return web.Response()
+    else:
+        None
+
+
+app.router.add_post('/{token}/', handle)
 
 lst_GNB = ['Отлично', 'Хорошо', 'Плохо']
 
@@ -885,4 +912,18 @@ name = 'schedule_thr'
 schedthr = MTread(name)
 schedthr.start()
 
-bot.polling()
+#bot.polling()
+
+bot.remove_webhook()
+
+bot.set_webhook(url=WEBHOOK_URL_BASE + WEBHOOK_URL_PATH,
+                certificate=open(WEBHOOK_SSL_CERT, 'r'))
+
+context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+context.load_cert_chain(WEBHOOK_SSL_CERT, WEBHOOK_SSL_PRIV)
+web.run_app(
+    app,
+    host=WEBHOOK_LISTEN,
+    port=WEBHOOK_PORT,
+    ssl_context=context,
+)
