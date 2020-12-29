@@ -30,16 +30,13 @@ app.cleanup()
 
 
 async def handle(request):
-	try:
-	    if request.match_info.get('token') == bot.token:
-	        request_body_dict = await request.json()
-	        update = telebot.types.Update.de_json(request_body_dict)
-	        bot.process_new_updates([update])
-	        return web.Response()
-	except Exception as E:
-		print(E)
-    else:
-        None
+	if request.match_info.get('token') == bot.token:
+		request_body_dict = await request.json()
+		update = telebot.types.Update.de_json(request_body_dict)
+		bot.process_new_updates([update])
+		return web.Response()
+	else:
+		None
 
 
 app.router.add_post('/{token}/', handle)
@@ -47,7 +44,7 @@ app.router.add_post('/{token}/', handle)
 lst_GNB = ['Отлично', 'Хорошо', 'Плохо']
 
 chats = {'Neg': '-1001280443571', 'Pos': '-1001435933763', 'Neu': '-1001472593128'}
-chats_indx = ['-1001280443571', '-1001435933763', '-1001472593128']
+chats_indx = ['-1001435933763', '-1001472593128', '-1001280443571']
 
 quest = {'all': ['Офис менеджер', 'Оператор пульта', 'Служба ГБР', 'Тех.группа'],
 		'alert': ['Отработка тревог'],
@@ -555,7 +552,6 @@ def send_lists(message, u_id):
 		for x in range(3):		
 			c.execute("select {}.*, Name, Username from {} inner join Users on Users.TG_Id = {}.U_Id where U_Id = {}".format(table_names[x], table_names[x], table_names[x], u_id))
 			b = c.fetchall()
-			print(b)
 			for z in b:
 				z = list(z)
 				if msgs[x] == '':
@@ -612,7 +608,6 @@ def sch_id(message):
 				z[6] = '(@{})'.format(z[6])
 			else:
 				z[6] = ''
-			print(z)
 			msgs[x] += "Отзыв №{}\n{}\n\nО:\n{}\n{} {} {}\n{}\n{}\n\n".format(z[0], z[3], z[4], z[5], z[7], z[6], z[1], z[2])
 			for y in util.split_string(msgs[x], 3000):
 					bot.send_message(message.chat.id, y)
@@ -858,13 +853,6 @@ def get_msg_about(message):
 		non_req_GNB(message, get_msg_about)
 def get_numb_subm(message):
 
-	c.execute("select phone from Users where TG_Id = {}".format(message.from_user.id))
-	a = c.fetchall()
-	print(a)
-	if a != [(None, )]:
-		message.text = 'Не передавать'
-		final_step(message)
-		return
 	msg_text = ''
 	if message.text == 'Нет':
 		msg_text = 'Сожалеем что наш сервис вас не устроил.'
@@ -872,11 +860,18 @@ def get_numb_subm(message):
 		start_msg(message)
 		return
 	if message.text != "-1testbug":
+		print(message.text)
 		append_to_us(message.from_user.id, message.text, 'msg')
 	else:
 		append_to_us(message.from_user.id, None, 'msg')
 	if msg_text == '':
 		msg_text = 'Спасибо за ваш отзыв, теперь - финальный этап. Поделитесь с нами вашим номером телефона чтобы мы могли вам ответить и помочь с проблемами.'
+	c.execute("select phone from Users where TG_Id = {}".format(message.from_user.id))
+	a = c.fetchall()
+	if a != [(None, )]:
+		message.text = 'Не передавать'
+		final_step(message)
+		return
 	markup = types.ReplyKeyboardMarkup()
 	markup.add(types.KeyboardButton('Передать номер телефона', True))
 	markup.add(types.KeyboardButton('Не передавать'))
@@ -920,6 +915,14 @@ schedthr.start()
 
 #bot.polling()
 
+bot.enable_save_next_step_handlers(delay=1)
+bot.enable_save_reply_handlers(delay = 1)
+
+# Load next_step_handlers from save file (default "./.handlers-saves/step.save")
+# WARNING It will work only if enable_save_next_step_handlers was called!
+bot.load_next_step_handlers()
+bot.load_reply_handlers()
+
 bot.remove_webhook()
 
 bot.set_webhook(url=WEBHOOK_URL_BASE + WEBHOOK_URL_PATH,
@@ -927,12 +930,9 @@ bot.set_webhook(url=WEBHOOK_URL_BASE + WEBHOOK_URL_PATH,
 
 context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 context.load_cert_chain(WEBHOOK_SSL_CERT, WEBHOOK_SSL_PRIV)
-try:
-	web.run_app(
-	    app,
-	    host=WEBHOOK_LISTEN,
-	    port=WEBHOOK_PORT,
-	    ssl_context=context,
-	)
-except Exception as E:
-	print(E)
+web.run_app(
+    app,
+    host=WEBHOOK_LISTEN,
+    port=WEBHOOK_PORT,
+    ssl_context=context,
+)
