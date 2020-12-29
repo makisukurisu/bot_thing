@@ -30,11 +30,14 @@ app.cleanup()
 
 
 async def handle(request):
-    if request.match_info.get('token') == bot.token:
-        request_body_dict = await request.json()
-        update = telebot.types.Update.de_json(request_body_dict)
-        bot.process_new_updates([update])
-        return web.Response()
+	try:
+	    if request.match_info.get('token') == bot.token:
+	        request_body_dict = await request.json()
+	        update = telebot.types.Update.de_json(request_body_dict)
+	        bot.process_new_updates([update])
+	        return web.Response()
+	except Exception as E:
+		print(E)
     else:
         None
 
@@ -924,9 +927,12 @@ bot.set_webhook(url=WEBHOOK_URL_BASE + WEBHOOK_URL_PATH,
 
 context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 context.load_cert_chain(WEBHOOK_SSL_CERT, WEBHOOK_SSL_PRIV)
-web.run_app(
-    app,
-    host=WEBHOOK_LISTEN,
-    port=WEBHOOK_PORT,
-    ssl_context=context,
-)
+try:
+	web.run_app(
+	    app,
+	    host=WEBHOOK_LISTEN,
+	    port=WEBHOOK_PORT,
+	    ssl_context=context,
+	)
+except Exception as E:
+	print(E)
