@@ -46,8 +46,8 @@ app.router.add_post('/{token}/', handle)
 
 lst_GNB = ['Отлично', 'Хорошо', 'Плохо']
 
-chats = {'Neg': '-436080592', 'Pos': '-359369842', 'Neu': '-463073970'}
-chats_indx = ['-359369842', '-463073970', '-436080592']
+chats = {'Neg': '-1001280443571', 'Pos': '-1001435933763', 'Neu': '-1001472593128'}
+chats_indx = ['-1001280443571', '-1001435933763', '-1001472593128']
 
 quest = {'all': ['Офис менеджер', 'Оператор пульта', 'Служба ГБР', 'Тех.группа'],
 		'alert': ['Отработка тревог'],
@@ -666,7 +666,7 @@ def del_sched(message):
 @bot.message_handler(commands = ['start'])
 def start_msg(message):
 
-	if message.chat.id == -336427671:
+	if message.chat.id == -1001352923742:
 		manage_msg(message)
 		return
 	if message.chat.type != 'private':
