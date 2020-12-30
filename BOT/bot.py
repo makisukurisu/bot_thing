@@ -3,11 +3,12 @@ import sqlite3
 import random
 import schedule
 import time
-import datetime as dt
+import datetime
+import ssl
 from threading import Thread
 from telebot import types, util
-import ssl
 from aiohttp import web
+import sys
 
 API_TOKEN = "1447763558:AAHAnuDaqHbDLyvEruZSxSre408DBOB_7vU"
 WEBHOOK_HOST = "45.32.159.240"
@@ -152,7 +153,7 @@ def proc_us(id, to_us):
 			r_id,
 			U_Info.id,
 			U_Info.message,
-			dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+			datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
 			x))
 		msg = '{} - {} {}\nОставил новый отзыв:\n{}\nОценил {}\n{}{}Номер отзыва: {}'.format(U_Info.name, U_Info.numb, us,m_text[m_text.index(x)], answ_var[m_text.index(x)], U_Info.from_, um, r_id)
 		bot.send_message(chats_indx[m_text.index(x)], msg)
@@ -234,10 +235,10 @@ def manage_msg_1(message):
 			count_week = [0, 0, 0, 0]
 			count_all = [0, 0, 0]
 			for name in table_names:
-				c.execute("select count(Id) from {} where date between '{}' and '{}'".format(name, dt.date.today() - dt.timedelta(7), dt.date.today() + dt.timedelta(1)))
+				c.execute("select count(Id) from {} where date between '{}' and '{}'".format(name, datetime.date.today() - datetime.timedelta(7), datetime.date.today() + datetime.timedelta(1)))
 				a = c.fetchall()
 				count_week[table_names.index(name)] = a[0][0]
-				c.execute("select count(Id) from {} where (date between '{}' and '{}') and (Text != 'None')".format(name, dt.date.today() - dt.timedelta(7), dt.date.today() + dt.timedelta(1)))
+				c.execute("select count(Id) from {} where (date between '{}' and '{}') and (Text != 'None')".format(name, datetime.date.today() - datetime.timedelta(7), datetime.date.today() + datetime.timedelta(1)))
 				b = c.fetchall()
 				count_week[3] += int(b[0][0])
 				c.execute("select count(Id) from {}".format(name))
@@ -439,43 +440,43 @@ def html_text(text, entities):
         if offset * 2 < len(utf16_text):
             html_text += func(utf16_text[offset * 2:])
         return html_text
-			
+
 def send_sched_msg(message, time):
 	
 	c.execute("select TG_Id from Users")
 	a = c.fetchall()
 	if message.animation is not None:
-		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		if int(datetime.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
 			for x in a:
 				bot.send_animation(x[0], message.animation.file_id, caption = html_text(message.caption, message.caption_entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.audio is not None:
-		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		if int(datetime.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
 			for x in a:
 				bot.send_audio(x[0], message.audio.file_id, caption = html_text(message.caption, message.caption_entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.photo is not None:
-		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		if int(datetime.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
 			for x in a:
 				bot.send_photo(x[0], message.photo[-1].file_id, caption = html_text(message.caption, message.caption_entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.sticker is not None:
-		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		if int(datetime.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
 			for x in a:
 				bot.send_sticker(x[0], message.sticker.file_id)
 		schedule.clear(message.message_id)
 	elif	 message.text is not None:
-		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		if int(datetime.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
 			for x in a:
 					bot.send_message(x[0], html_text(message.text, message.entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.video is not None:
-		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		if int(datetime.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
 			for x in a:
 				bot.send_video(x[0], message.video.file_id, caption = html_text(message.caption, message.caption_entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.voice is not None:
-		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		if int(datetime.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
 			for x in a:
 				bot.send_voice(x[0], message.voice.file_id)
 			schedule.clear(message.message_id)
@@ -489,8 +490,8 @@ def sched_msg(message):
 def conf_sched(message, send_msg):
 	
 	try:
-		time = dt.datetime.fromisoformat(message.text + ":00")
-		if time.timestamp() < dt.datetime.now().timestamp():
+		time = datetime.datetime.fromisoformat(message.text)
+		if time.timestamp() < datetime.datetime.now().timestamp():
 			msg = bot.send_message(message.chat.id, 'Было до этого!\n\nУкажите правильную дату и время ответив на это сообщение')
 			bot.register_for_reply(msg, conf_sched, send_msg)
 		else:
@@ -500,7 +501,7 @@ def conf_sched(message, send_msg):
 			start_msg(message)
 	except Exception as E:
 		print(E)
-		msg = bot.send_message(message.chat.id, 'Не могу разобрать это сооющение, ответьте на это в таком формате:\n\nГод-Месяц-День Час:Минута')
+		msg = bot.send_message(message.chat.id, 'Не могу разобрать это сообщение, ответьте на это в таком формате:\n\nГод-Месяц-День Час:Минута')
 		bot.register_for_reply(msg, conf_sched, send_msg)
 
 def search_msg(message):
@@ -517,7 +518,7 @@ def search_msg(message):
 			bot.register_for_reply(msg, sch_numb)
 		elif lst.index(message.text) == 2:
 			markup = types.ForceReply()
-			msg = bot.send_message(message.chat.id, 'Укажите номер ответив на это сообщение', reply_markup = markup)
+			msg = bot.send_message(message.chat.id, 'Укажите номер отзыва ответив на это сообщение', reply_markup = markup)
 			bot.register_for_reply(msg, sch_id)
 		elif lst.index(message.text) == 3:
 			markup = get_GNB_markup()
@@ -533,7 +534,7 @@ def search_msg(message):
 def sch_date(message):
 
 	try:
-		date = dt.date.fromisoformat(message.text)
+		date = datetime.date.fromisoformat(message.text)
 		get_msg_by_Date(message, date = str(date))
 	except Exception as E:
 		print(E)
@@ -592,6 +593,7 @@ def sch_id(message):
 	table_names = ['Pos_Rev', 'Neu_Rev', 'Neg_Rev']
 	addi_names = ['Положительные:\n\n', 'Нейтральные:\n\n', 'Негативные:\n\n']
 	try:
+		int(message.text)
 		for x in range(3):
 			c.execute("select {}.*, Name, Username, Phone from {} inner join Users on Users.TG_Id = {}.U_Id where Id = {}".format(table_names[x], table_names[x], table_names[x], message.text))
 			z = c.fetchall()
@@ -618,7 +620,9 @@ def sch_id(message):
 		message.text = '/start'
 		start_msg(message)
 	except Exception as E:
-		bot.send_message(message.chat.id, E)
+		bot.send_message(message.chat.id, 'Неверно указан номер отзыва.')
+		message.text = '/start'
+		start_msg(message)
 
 def get_GNB_rev(message):
 
@@ -627,13 +631,13 @@ def get_GNB_rev(message):
 		addi_names = ['Положительные:\n\n', 'Нейтральные:\n\n', 'Негативные:\n\n']
 
 		if lst_GNB.index(message.text) == 0:
-			c.execute("select Pos_Rev.*, Name, Username from Pos_Rev inner join Users on Users.TG_Id = Pos_Rev.U_Id where date between '{}' and '{}'".format(dt.date.today() - dt.timedelta(7), dt.date.today() + dt.timedelta(1)))
+			c.execute("select Pos_Rev.*, Name, Username from Pos_Rev inner join Users on Users.TG_Id = Pos_Rev.U_Id where date between '{}' and '{}'".format(datetime.date.today() - datetime.timedelta(7), datetime.date.today() + datetime.timedelta(1)))
 			addi_names = addi_names[0]
 		elif lst_GNB.index(message.text) == 1:
-			c.execute("select Neu_Rev.*, Name, Username from Neu_Rev inner join Users on Users.TG_Id = Neu_Rev.U_Id where date between '{}' and '{}'".format(dt.date.today() - dt.timedelta(7), dt.date.today()  + dt.timedelta(1)))
+			c.execute("select Neu_Rev.*, Name, Username from Neu_Rev inner join Users on Users.TG_Id = Neu_Rev.U_Id where date between '{}' and '{}'".format(datetime.date.today() - datetime.timedelta(7), datetime.date.today()  + datetime.timedelta(1)))
 			addi_names = addi_names[1]
 		elif lst_GNB.index(message.text) == 2:
-			c.execute("select Neg_Rev.*, Name, Username from Neg_Rev inner join Users on Users.TG_Id = Neg_Rev.U_Id where date between '{}' and '{}'".format(dt.date.today() - dt.timedelta(7), dt.date.today()  + dt.timedelta(1)))
+			c.execute("select Neg_Rev.*, Name, Username from Neg_Rev inner join Users on Users.TG_Id = Neg_Rev.U_Id where date between '{}' and '{}'".format(datetime.date.today() - datetime.timedelta(7), datetime.date.today()  + datetime.timedelta(1)))
 			addi_names = addi_names[2]
 		a = c.fetchall()
 		if a == []:
@@ -652,6 +656,11 @@ def get_GNB_rev(message):
 			bot.send_message(message.chat.id, y)
 		message.text = '/start'
 		start_msg(message)
+	else:
+		markup = get_GNB_markup()
+		markup.one_time_keyboard = True
+		msg = bot.send_message(message.chat.id, 'Не понял ввод. Выбирайте из кнпок ниже.', reply_markup = markup)
+		bot.register_for_reply(msg, get_GNB_rev)
 
 @bot.message_handler(commands = ['del_sched'])
 def del_sched(message):
@@ -862,7 +871,6 @@ def get_numb_subm(message):
 		start_msg(message)
 		return
 	if message.text != "-1testbug":
-		print(message.text)
 		append_to_us(message.from_user.id, message.text, 'msg')
 	else:
 		append_to_us(message.from_user.id, None, 'msg')
@@ -912,8 +920,8 @@ class MTread(Thread):
 			time.sleep(1)
 
 name = 'schedule_thr'
-schedthr = MTread(name)
-schedthr.start()
+schedatetimehr = MTread(name)
+schedatetimehr.start()
 
 #bot.polling()
 
