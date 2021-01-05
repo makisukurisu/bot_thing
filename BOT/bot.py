@@ -3,18 +3,50 @@ import sqlite3
 import random
 import schedule
 import time
-import datetime as dt
+import datetime
+import ssl
+import sys
+import pandas
 from threading import Thread
 from telebot import types, util
+from aiohttp import web
 
-bot = telebot.TeleBot('1447763558:AAHAnuDaqHbDLyvEruZSxSre408DBOB_7vU')
+API_TOKEN = "1447763558:AAHAnuDaqHbDLyvEruZSxSre408DBOB_7vU"
+WEBHOOK_HOST = "45.32.159.240"
+WEBHOOK_PORT = 8443
+WEBHOOK_LISTEN = '45.32.159.240'
+WEBHOOK_SSL_CERT = './webhook_cert.pem'
+WEBHOOK_SSL_PRIV = './webhook_pkey.pem'
+
+WEBHOOK_URL_BASE = "https://{}:{}".format(WEBHOOK_HOST, WEBHOOK_PORT)
+WEBHOOK_URL_PATH = "/{}/".format(API_TOKEN)
+
 db = sqlite3.connect('db.db', check_same_thread=False)
 c = db.cursor()
 
+bot = telebot.TeleBot(API_TOKEN)
+
+app = web.Application()
+app.shutdown()
+app.cleanup()
+
+
+async def handle(request):
+	if request.match_info.get('token') == bot.token:
+		request_body_dict = await request.json()
+		update = telebot.types.Update.de_json(request_body_dict)
+		bot.process_new_updates([update])
+		return web.Response()
+	else:
+		None
+
+
+app.router.add_post('/{token}/', handle)
+
 lst_GNB = ['Отлично', 'Хорошо', 'Плохо']
 
-chats = {'Neg': '-436080592', 'Pos': '-359369842', 'Neu': '-463073970'}
-chats_indx = ['-359369842', '-463073970', '-436080592']
+chats = {'Neg': '-1001280443571', 'Pos': '-1001435933763', 'Neu': '-1001472593128'}
+chats_indx = ['-1001435933763', '-1001472593128', '-1001280443571']
 
 quest = {'all': ['Офис менеджер', 'Оператор пульта', 'Служба ГБР', 'Тех.группа'],
 		'alert': ['Отработка тревог'],
@@ -70,11 +102,11 @@ def get_us(id):
 		if x.id == id:
 			return x
 	else:
-		return Noned
+		return None
 
 def get_GNB_markup():
 	''' Good, neutral, bad markup '''
-	markup = types.ReplyKeyboardMarkup()
+	markup = types.ReplyKeyboardMarkup(one_time_keyboard = True)
 	markup.add(types.KeyboardButton('Отлично'))
 	markup.add(types.KeyboardButton('Хорошо'))
 	markup.add(types.KeyboardButton('Плохо'))
@@ -94,12 +126,12 @@ def proc_us(id, to_us):
 	answ_var = ['Отлично', 'Хорошо', 'Плохо']
 	comp_text = []
 	table_names = ['Pos_Rev', 'Neu_Rev', 'Neg_Rev']
-	#object
 	res = c.execute("select Phone from Users where TG_Id = {}".format(U_Info.id))
 	res = res.fetchall()
 	if res != [(None,)] and U_Info.numb is None:
 		U_Info.numb = res[0][0]
 	elif res == [(None,)] and type(U_Info.numb) != type(None):
+		print(U_Info.numb)
 		c.execute("update Users set Phone = '{}' where TG_Id = {}".format(U_Info.numb, U_Info.id))
 		db.commit()
 	for x in range(len(U_Info.answers)):
@@ -122,11 +154,10 @@ def proc_us(id, to_us):
 			r_id,
 			U_Info.id,
 			U_Info.message,
-			dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+			datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
 			x))
-		msg = '{} - {} {}\nОставил новый отзыв:\n{}\nОценил {}\n{}{}Номер отзыва: {}'.format(U_Info.name, U_Info.numb, us,m_text[m_text.index(x)], answ_var[m_text.index(x)], U_Info.from_, um, r_id)
-		bot.send_message(chats_indx[m_text.index(x)], msg)
-		bot.send_message(to_us, 'Спасибо за ваш отзыв №{} о:\n{}'.format(r_id, x))
+		msg = '{} - {} {}\nОставил новый отзыв:\n{}\nОценил {}\n{}{}Номер отзыва: {}\n\nId пользователя: <code>{}</code>\n\n'.format(U_Info.name, U_Info.numb, us,m_text[m_text.index(x)], answ_var[m_text.index(x)], U_Info.from_, um, r_id, U_Info.id)
+		bot.send_message(chats_indx[m_text.index(x)], msg, parse_mode = 'html')
 	db.commit()
 
 
@@ -139,7 +170,10 @@ def get_msg_by_Date(message, date = None):
 	addi_names = ['Положительные:\n\n', 'Нейтральные:\n\n', 'Негативные:\n\n']
 	for x in range(3):
 		t = table_names[x]
-		c.execute("select {}.*, Users.Name, Users.Phone, Users.Username from {} inner join Users on Users.TG_Id = {}.U_Id where date like '{}%'".format(t, t, t, date))
+		if type(date) == type(list()):
+			c.execute("select {}.*, Users.Name, Users.Phone, Users.Username from {} inner join Users on Users.TG_Id = {}.U_Id where date between '{}' and '{}'".format(t, t, t, date[0], date[1]))
+		else:
+			c.execute("select {}.*, Users.Name, Users.Phone, Users.Username from {} inner join Users on Users.TG_Id = {}.U_Id where date like '{}%'".format(t, t, t, date))
 		a = c.fetchall()
 		if a == []:
 			continue
@@ -157,9 +191,9 @@ def get_msg_by_Date(message, date = None):
 				z[7] = '(@{})'.format(z[7])
 			else:
 				z[7] = ''
-			msgs[x] += "Отзыв №{}\n{}\n\nО:\n{}\n{} {} {}\n{}\n\n".format(z[0], z[3], z[4], z[5], z[6], z[7], z[2])
+			msgs[x] += "Отзыв №{}\n{}\n\nО:\n{}\n{} {} {}\n{}\n\nId пользователя: <code>{}</code>\n\n".format(z[0], z[3], z[4], z[5], z[6], z[7], z[2], z[1])
 		for y in util.split_string(msgs[x], 3000):
-			bot.send_message(message.chat.id, y)
+			bot.send_message(message.chat.id, y, parse_mode = 'html')
 	if msgs == ['', '', '']:
 		bot.send_message(message.chat.id, 'За эту дату нет отзывов')
 	message.text = '/start'
@@ -172,18 +206,50 @@ def get_chat_id(message):
 
 	bot.send_message(message.chat.id, 'Айди этого чата:\n<code>{}</code>'.format(message.chat.id), parse_mode = "HTML")
 
+def get_db():
+
+	lst_name = ['Пользователи', 'Положительные отзывы', 'Нейтральные отзывы', 'Негативные отзывы']
+	lst_header = [['Айди Пользователя', 'Имя', 'Фамилия', 'Номер телфона', 'Номер объекта', 'Ник'],
+			 ['Id', 'Айди пользователя', 'Сообщение', 'Время получения', 'О'],
+			 ['Id', 'Айди пользователя', 'Сообщение', 'Время получения', 'О'],
+			 ['Id', 'Айди пользователя', 'Сообщение', 'Время получения', 'О']]
+	lst_req = [
+		'select * from users',
+		'select * from Pos_Rev',
+		'select * from Neu_Rev',
+		'select * from Neg_Rev'
+		]
+
+	df_lst = []
+
+	for x in range(4):
+		c.execute(lst_req[x])
+		a = c.fetchall()
+		df_lst.append(pandas.DataFrame(a, columns = lst_header[x]))
+	
+	with pandas.ExcelWriter('cur_db.xlsx') as writer:
+		df_lst[0].to_excel(writer, sheet_name = lst_name[0])
+		df_lst[1].to_excel(writer, sheet_name = lst_name[1])
+		df_lst[2].to_excel(writer, sheet_name = lst_name[2])
+		df_lst[3].to_excel(writer, sheet_name = lst_name[3])
+
+	file1 = open('cur_db.xlsx', 'rb')
+
+	return file1
+
 def manage_msg(message):
 
 	markup = types.ReplyKeyboardMarkup(None, True)
 	markup.add(types.KeyboardButton('Статистика'))
 	markup.add(types.KeyboardButton('Добавить пост'))
 	markup.add(types.KeyboardButton('Управление пользователями'), types.KeyboardButton('Поиск отзывов'))
+	markup.add(types.KeyboardButton('Получить файл базы'))
 	msg = bot.send_message(message.chat.id, 'Панель управления:', reply_markup = markup)
 	bot.register_for_reply(msg, manage_msg_1)
 
 def manage_msg_1(message):
 
-	lst = ['Добавить пост', 'Поиск отзывов', 'Управление пользователями', 'Статистика']
+	lst = ['Добавить пост', 'Поиск отзывов', 'Управление пользователями', 'Статистика', "Получить файл базы"]
 	if message.text in lst:
 		if lst.index(message.text) == 0:
 			msg = bot.send_message(message.chat.id, 'Ответьте на это сообщение постом который надо запланировать.')
@@ -204,10 +270,10 @@ def manage_msg_1(message):
 			count_week = [0, 0, 0, 0]
 			count_all = [0, 0, 0]
 			for name in table_names:
-				c.execute("select count(Id) from {} where date between '{}' and '{}'".format(name, dt.date.today() - dt.timedelta(7), dt.date.today() + dt.timedelta(1)))
+				c.execute("select count(Id) from {} where date between '{}' and '{}'".format(name, datetime.date.today() - datetime.timedelta(7), datetime.date.today() + datetime.timedelta(1)))
 				a = c.fetchall()
 				count_week[table_names.index(name)] = a[0][0]
-				c.execute("select count(Id) from {} where (date between '{}' and '{}') and (Text != 'None')".format(name, dt.date.today() - dt.timedelta(7), dt.date.today() + dt.timedelta(1)))
+				c.execute("select count(Id) from {} where (date between '{}' and '{}') and (Text != 'None')".format(name, datetime.date.today() - datetime.timedelta(7), datetime.date.today() + datetime.timedelta(1)))
 				b = c.fetchall()
 				count_week[3] += int(b[0][0])
 				c.execute("select count(Id) from {}".format(name))
@@ -224,6 +290,10 @@ def manage_msg_1(message):
 				))
 			message.text = '/start'
 			start_msg(message)
+		elif lst.index(message.text) == 4:
+			bot.send_document(message.chat.id, get_db())
+			message.text = '/start'
+			start_msg(message)
 	else:
 		manage_msg(message)
 
@@ -237,6 +307,7 @@ def send_us_info_by(message, a):
 				markup.add(types.KeyboardButton('Изменить Номер'))
 				markup.add(types.KeyboardButton('Изменить Участок'))
 				markup.add(types.KeyboardButton('Удалить запись'))
+				markup.add(types.KeyboardButton('В главное меню'))
 				if a[5] != None:
 					a[5] = '@' + a[5]
 				else:
@@ -244,10 +315,7 @@ def send_us_info_by(message, a):
 				if a[4] != None:
 					a[4] = 'Участок: ' + a[4]
 				else:
-					if a[4] == 'None':
-						a[4] = ''
-					else:
-						print(a[4])
+					a[4] = ''
 				if a[3] != None:
 					a[3] = 'Номер: ' + a[3]
 				else:
@@ -262,7 +330,7 @@ def send_us_info_by(message, a):
 
 def proc_edit_us(message, u_id):
 
-	lst = ['Изменить Имя', 'Изменить Номер', 'Изменить Участок', 'Удалить запись']
+	lst = ['Изменить Имя', 'Изменить Номер', 'Изменить Участок', 'Удалить запись', 'В главное меню']
 
 	if message.text in lst:
 
@@ -288,6 +356,9 @@ def proc_edit_us(message, u_id):
 					markup.add(types.KeyboardButton('Подтверждаю'))
 			msg = bot.send_message(message.chat.id, 'Подтверждаете удаление? (Человек не будет больше получать уведомления и тд!)', reply_markup = markup)
 			bot.register_for_reply(msg, del_user_prof, u_id)
+		elif lst.index(message.text) == 4:
+			message.text = '/start'
+			start_msg(message)
 
 def del_user_prof(message, u_id):
 
@@ -332,6 +403,8 @@ def edit_us_msg(message):
 			ph = "38" + message.text
 		elif message.text[0] == '+':
 			ph = message.text[1:]
+		elif message.text[0:3] == '380':
+			ph = message.text			
 		c.execute("select * from Users where Phone = '{}'".format(ph))
 		a = c.fetchall()
 		if send_us_info_by(message, a) == True:
@@ -407,43 +480,43 @@ def html_text(text, entities):
         if offset * 2 < len(utf16_text):
             html_text += func(utf16_text[offset * 2:])
         return html_text
-			
+
 def send_sched_msg(message, time):
 	
 	c.execute("select TG_Id from Users")
 	a = c.fetchall()
 	if message.animation is not None:
-		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		if int(datetime.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
 			for x in a:
 				bot.send_animation(x[0], message.animation.file_id, caption = html_text(message.caption, message.caption_entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.audio is not None:
-		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		if int(datetime.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
 			for x in a:
 				bot.send_audio(x[0], message.audio.file_id, caption = html_text(message.caption, message.caption_entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.photo is not None:
-		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		if int(datetime.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
 			for x in a:
 				bot.send_photo(x[0], message.photo[-1].file_id, caption = html_text(message.caption, message.caption_entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.sticker is not None:
-		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		if int(datetime.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
 			for x in a:
 				bot.send_sticker(x[0], message.sticker.file_id)
 		schedule.clear(message.message_id)
 	elif	 message.text is not None:
-		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		if int(datetime.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
 			for x in a:
 					bot.send_message(x[0], html_text(message.text, message.entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.video is not None:
-		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		if int(datetime.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
 			for x in a:
 				bot.send_video(x[0], message.video.file_id, caption = html_text(message.caption, message.caption_entities), parse_mode = 'html')
 			schedule.clear(message.message_id)
 	elif message.voice is not None:
-		if int(dt.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
+		if int(datetime.datetime.now().timestamp()) in range(int(time) - 15, int(time) + 15):
 			for x in a:
 				bot.send_voice(x[0], message.voice.file_id)
 			schedule.clear(message.message_id)
@@ -457,8 +530,8 @@ def sched_msg(message):
 def conf_sched(message, send_msg):
 	
 	try:
-		time = dt.datetime.fromisoformat(message.text + ":00")
-		if time.timestamp() < dt.datetime.now().timestamp():
+		time = datetime.datetime.strptime(message.text, '%d.%m.%y %H:%M')
+		if time.timestamp() < datetime.datetime.now().timestamp():
 			msg = bot.send_message(message.chat.id, 'Было до этого!\n\nУкажите правильную дату и время ответив на это сообщение')
 			bot.register_for_reply(msg, conf_sched, send_msg)
 		else:
@@ -468,7 +541,7 @@ def conf_sched(message, send_msg):
 			start_msg(message)
 	except Exception as E:
 		print(E)
-		msg = bot.send_message(message.chat.id, 'Не могу разобрать это сооющение, ответьте на это в таком формате:\n\nГод-Месяц-День Час:Минута')
+		msg = bot.send_message(message.chat.id, 'Не могу разобрать это сообщение, ответьте на это в таком формате:\n\nГод-Месяц-День Час:Минута')
 		bot.register_for_reply(msg, conf_sched, send_msg)
 
 def search_msg(message):
@@ -477,7 +550,7 @@ def search_msg(message):
 	if message.text in lst:
 		if lst.index(message.text) == 0:
 			markup = types.ForceReply()
-			msg = bot.send_message(message.chat.id, 'Укажите дату ответив на это сообщение в формате ИСО (Год-Мессяц-Дата)', reply_markup = markup)
+			msg = bot.send_message(message.chat.id, 'Укажите дату (или промежуток) ответив на это сообщение', reply_markup = markup)
 			bot.register_for_reply(msg, sch_date)
 		elif lst.index(message.text) == 1:
 			markup = types.ForceReply()
@@ -485,7 +558,7 @@ def search_msg(message):
 			bot.register_for_reply(msg, sch_numb)
 		elif lst.index(message.text) == 2:
 			markup = types.ForceReply()
-			msg = bot.send_message(message.chat.id, 'Укажите номер ответив на это сообщение', reply_markup = markup)
+			msg = bot.send_message(message.chat.id, 'Укажите номер отзыва ответив на это сообщение', reply_markup = markup)
 			bot.register_for_reply(msg, sch_id)
 		elif lst.index(message.text) == 3:
 			markup = get_GNB_markup()
@@ -500,9 +573,21 @@ def search_msg(message):
 
 def sch_date(message):
 
+	sep_date = message.text.split('-')
+	if len(sep_date) > 1:
+		try:
+			date_1 = datetime.datetime.strptime(sep_date[0].replace(' ', ''), '%d.%m.%y')
+			date_2 = datetime.datetime.strptime(sep_date[1].replace(' ', ''), '%d.%m.%y')
+			get_msg_by_Date(message, [date_1.date(), date_2.date()])
+			return
+		except Exception as E:
+			print(E)
+			msg = bot.send_message(message.chat.id, 'Не могу понять этот промежуток, попробуйте ещё раз.\n\n01.01.2-05.03.21')
+			bot.register_for_reply(msg, sch_date)
+
 	try:
-		date = dt.date.fromisoformat(message.text)
-		get_msg_by_Date(message, date = str(date))
+		date = datetime.datetime.strptime(message.text, '%d.%m.%y')
+		get_msg_by_Date(message, date = str(date.date()))
 	except Exception as E:
 		print(E)
 		msg = bot.send_message(message.chat.id, 'Не могу понять эту дату, попробуйте ещё раз.')
@@ -522,7 +607,6 @@ def send_lists(message, u_id):
 		for x in range(3):		
 			c.execute("select {}.*, Name, Username from {} inner join Users on Users.TG_Id = {}.U_Id where U_Id = {}".format(table_names[x], table_names[x], table_names[x], u_id))
 			b = c.fetchall()
-			print(b)
 			for z in b:
 				z = list(z)
 				if msgs[x] == '':
@@ -561,6 +645,7 @@ def sch_id(message):
 	table_names = ['Pos_Rev', 'Neu_Rev', 'Neg_Rev']
 	addi_names = ['Положительные:\n\n', 'Нейтральные:\n\n', 'Негативные:\n\n']
 	try:
+		int(message.text)
 		for x in range(3):
 			c.execute("select {}.*, Name, Username, Phone from {} inner join Users on Users.TG_Id = {}.U_Id where Id = {}".format(table_names[x], table_names[x], table_names[x], message.text))
 			z = c.fetchall()
@@ -579,7 +664,6 @@ def sch_id(message):
 				z[6] = '(@{})'.format(z[6])
 			else:
 				z[6] = ''
-			print(z)
 			msgs[x] += "Отзыв №{}\n{}\n\nО:\n{}\n{} {} {}\n{}\n{}\n\n".format(z[0], z[3], z[4], z[5], z[7], z[6], z[1], z[2])
 			for y in util.split_string(msgs[x], 3000):
 					bot.send_message(message.chat.id, y)
@@ -588,7 +672,9 @@ def sch_id(message):
 		message.text = '/start'
 		start_msg(message)
 	except Exception as E:
-		bot.send_message(message.chat.id, E)
+		bot.send_message(message.chat.id, 'Неверно указан номер отзыва.')
+		message.text = '/start'
+		start_msg(message)
 
 def get_GNB_rev(message):
 
@@ -597,13 +683,13 @@ def get_GNB_rev(message):
 		addi_names = ['Положительные:\n\n', 'Нейтральные:\n\n', 'Негативные:\n\n']
 
 		if lst_GNB.index(message.text) == 0:
-			c.execute("select Pos_Rev.*, Name, Username from Pos_Rev inner join Users on Users.TG_Id = Pos_Rev.U_Id where date between '{}' and '{}'".format(dt.date.today() - dt.timedelta(7), dt.date.today() + dt.timedelta(1)))
+			c.execute("select Pos_Rev.*, Name, Username from Pos_Rev inner join Users on Users.TG_Id = Pos_Rev.U_Id where date between '{}' and '{}'".format(datetime.date.today() - datetime.timedelta(7), datetime.date.today() + datetime.timedelta(1)))
 			addi_names = addi_names[0]
 		elif lst_GNB.index(message.text) == 1:
-			c.execute("select Neu_Rev.*, Name, Username from Neu_Rev inner join Users on Users.TG_Id = Neu_Rev.U_Id where date between '{}' and '{}'".format(dt.date.today() - dt.timedelta(7), dt.date.today()  + dt.timedelta(1)))
+			c.execute("select Neu_Rev.*, Name, Username from Neu_Rev inner join Users on Users.TG_Id = Neu_Rev.U_Id where date between '{}' and '{}'".format(datetime.date.today() - datetime.timedelta(7), datetime.date.today()  + datetime.timedelta(1)))
 			addi_names = addi_names[1]
 		elif lst_GNB.index(message.text) == 2:
-			c.execute("select Neg_Rev.*, Name, Username from Neg_Rev inner join Users on Users.TG_Id = Neg_Rev.U_Id where date between '{}' and '{}'".format(dt.date.today() - dt.timedelta(7), dt.date.today()  + dt.timedelta(1)))
+			c.execute("select Neg_Rev.*, Name, Username from Neg_Rev inner join Users on Users.TG_Id = Neg_Rev.U_Id where date between '{}' and '{}'".format(datetime.date.today() - datetime.timedelta(7), datetime.date.today()  + datetime.timedelta(1)))
 			addi_names = addi_names[2]
 		a = c.fetchall()
 		if a == []:
@@ -622,6 +708,11 @@ def get_GNB_rev(message):
 			bot.send_message(message.chat.id, y)
 		message.text = '/start'
 		start_msg(message)
+	else:
+		markup = get_GNB_markup()
+		markup.one_time_keyboard = True
+		msg = bot.send_message(message.chat.id, 'Не понял ввод. Выбирайте из кнпок ниже.', reply_markup = markup)
+		bot.register_for_reply(msg, get_GNB_rev)
 
 @bot.message_handler(commands = ['del_sched'])
 def del_sched(message):
@@ -633,7 +724,7 @@ def del_sched(message):
 @bot.message_handler(commands = ['start'])
 def start_msg(message):
 
-	if message.chat.id == -336427671:
+	if message.chat.id == -1001352923742:
 		manage_msg(message)
 		return
 	if message.chat.type != 'private':
@@ -701,7 +792,7 @@ def answ_start(message, from_ = None):
 		msg = bot.send_message(message.chat.id, 'Оцените качество работы технической группы', reply_markup = get_GNB_markup())
 		bot.register_next_step_handler(msg, tech_rev_msg)
 	else:
-		markup = types.ReplyKeyboardMarkup()
+		markup = types.ReplyKeyboardMarkup(one_time_keyboard = True)
 		markup.add(types.KeyboardButton('Отзыв о всех'))
 		markup.add(types.KeyboardButton('Отзыв о тревогах'))
 		markup.add(types.KeyboardButton('Отзыв о тех.группе'))
@@ -719,7 +810,7 @@ def tech_rev_msg(message):
 		append_to_us(message.from_user.id, 'tech', 'about')
 		info = get_us(message.from_user.id)
 		if 'Плохо' in info.answers:
-			markup = types.ReplyKeyboardMarkup()
+			markup = types.ReplyKeyboardMarkup(one_time_keyboard = True)
 			markup.add(types.KeyboardButton('Да'))
 			markup.add(types.KeyboardButton('Нет'))
 			msg = bot.send_message(message.chat.id, 'Вам что-то не понравилось, нам комментарий?', reply_markup = markup)
@@ -741,7 +832,7 @@ def trev_msg(message):
 		append_to_us(message.from_user.id, 'alert', 'about')
 		info = get_us(message.from_user.id)
 		if 'Плохо' in info.answers:
-			markup = types.ReplyKeyboardMarkup()
+			markup = types.ReplyKeyboardMarkup(one_time_keyboard = True)
 			markup.add(types.KeyboardButton('Да'))
 			markup.add(types.KeyboardButton('Нет'))
 			msg = bot.send_message(message.chat.id, 'Вам что-то не понравилось, нам комментарий?', reply_markup = markup)
@@ -800,7 +891,7 @@ def concl_msg(message):
 		append_to_us(message.from_user.id, message.text)
 		info = get_us(message.from_user.id)
 		if 'Плохо' in info.answers:
-			markup = types.ReplyKeyboardMarkup()
+			markup = types.ReplyKeyboardMarkup(one_time_keyboard = True)
 			markup.add(types.KeyboardButton('Да'))
 			markup.add(types.KeyboardButton('Нет'))
 			msg = bot.send_message(message.chat.id, 'Вам что-то не понравилось, оставите нам комментарий?', reply_markup = markup)
@@ -825,13 +916,6 @@ def get_msg_about(message):
 		non_req_GNB(message, get_msg_about)
 def get_numb_subm(message):
 
-	c.execute("select phone from Users where TG_Id = {}".format(message.from_user.id))
-	a = c.fetchall()
-	print(a)
-	if a != [(None, )]:
-		message.text = 'Не передавать'
-		final_step(message)
-		return
 	msg_text = ''
 	if message.text == 'Нет':
 		msg_text = 'Сожалеем что наш сервис вас не устроил.'
@@ -844,7 +928,13 @@ def get_numb_subm(message):
 		append_to_us(message.from_user.id, None, 'msg')
 	if msg_text == '':
 		msg_text = 'Спасибо за ваш отзыв, теперь - финальный этап. Поделитесь с нами вашим номером телефона чтобы мы могли вам ответить и помочь с проблемами.'
-	markup = types.ReplyKeyboardMarkup()
+	c.execute("select phone from Users where TG_Id = {}".format(message.from_user.id))
+	a = c.fetchall()
+	if a != [(None, )]:
+		message.text = 'Не передавать'
+		final_step(message)
+		return
+	markup = types.ReplyKeyboardMarkup(one_time_keyboard = True)
 	markup.add(types.KeyboardButton('Передать номер телефона', True))
 	markup.add(types.KeyboardButton('Не передавать'))
 	msg = bot.send_message(message.chat.id, msg_text, reply_markup = markup)
@@ -852,24 +942,35 @@ def get_numb_subm(message):
 
 def final_step(message):
 
+	markup = types.InlineKeyboardMarkup()
+	markup.add(types.InlineKeyboardButton('Вернуться на сайт', "https://centr.od.ua/ua/"))
+	markup.add(types.InlineKeyboardButton('Оставить новый отзыв', callback_data = 'new_resp'))
+	markup.add(types.InlineKeyboardButton('Связаться с менеджером', callback_data = 'call_mgr'))
+	
 	if type(message.contact) != type(None):
 		append_to_us(message.from_user.id, message.contact.phone_number[1:], 'numb')
-		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!', reply_markup = types.ReplyKeyboardRemove())
+		msg = bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!', reply_markup = markup)
 		proc_us(message.from_user.id, message.from_user.id)
 		us_answers.remove(get_us(message.from_user.id))
-		message.text = '/start'
-		start_msg(message)
 	elif message.text == 'Не передавать':
-		bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!', reply_markup = types.ReplyKeyboardRemove())
+		msg = bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!', reply_markup = markup)
 		proc_us(message.from_user.id, message.from_user.id)
 		us_answers.remove(get_us(message.from_user.id))
-		message.text = '/start'
-		start_msg(message)
 	elif message.text.find('/start') >= 0:
 		start_msg(message)
 	else:
 		msg = bot.send_message(message.chat.id, 'Используйте кнопки снизу!')
 		bot.register_next_step_handler(msg, final_step)
+
+@bot.callback_query_handler(func=lambda call: True)
+def handle_msg(call):
+
+	bot.answer_callback_query(call.id, 'Обрабатываю')
+	if call.data == 'new_resp':
+		call.message.text = '/start'
+		start_msg(call.message)
+	elif call.data == 'call_mgr':
+		bot.send_message(call.message.chat.id, 'Желаю вам здоровья и побыстрее найти номер менеджера)')
 
 class MTread(Thread):
 
@@ -882,7 +983,29 @@ class MTread(Thread):
 			time.sleep(1)
 
 name = 'schedule_thr'
-schedthr = MTread(name)
-schedthr.start()
+schedatetimehr = MTread(name)
+schedatetimehr.start()
 
-bot.polling()
+#bot.polling()
+
+bot.enable_save_next_step_handlers(delay=1)
+bot.enable_save_reply_handlers(delay = 1)
+
+# Load next_step_handlers from save file (default "./.handlers-saves/step.save")
+# WARNING It will work only if enable_save_next_step_handlers was called!
+bot.load_next_step_handlers()
+bot.load_reply_handlers()
+
+bot.remove_webhook()
+
+bot.set_webhook(url=WEBHOOK_URL_BASE + WEBHOOK_URL_PATH,
+                certificate=open(WEBHOOK_SSL_CERT, 'r'))
+
+context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+context.load_cert_chain(WEBHOOK_SSL_CERT, WEBHOOK_SSL_PRIV)
+web.run_app(
+    app,
+    host=WEBHOOK_LISTEN,
+    port=WEBHOOK_PORT,
+    ssl_context=context,
+)
