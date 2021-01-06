@@ -936,7 +936,7 @@ def get_numb_subm(message):
 		return
 	markup = types.ReplyKeyboardMarkup(one_time_keyboard = True)
 	markup.add(types.KeyboardButton('Передать номер телефона', True))
-	markup.add(types.KeyboardButton('Не передавать'))
+	#markup.add(types.KeyboardButton('Не передавать')) Попросили убрать.
 	msg = bot.send_message(message.chat.id, msg_text, reply_markup = markup)
 	bot.register_next_step_handler(msg, final_step)
 
