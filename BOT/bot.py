@@ -124,14 +124,13 @@ def proc_us(id, to_us):
 	U_Info = get_us(id)
 	m_text = ['', '', '']
 	answ_var = ['Отлично', 'Хорошо', 'Плохо']
-	comp_text = []
+	#comp_text = []
 	table_names = ['Pos_Rev', 'Neu_Rev', 'Neg_Rev']
 	res = c.execute("select Phone from Users where TG_Id = {}".format(U_Info.id))
 	res = res.fetchall()
 	if res != [(None,)] and U_Info.numb is None:
 		U_Info.numb = res[0][0]
 	elif res == [(None,)] and type(U_Info.numb) != type(None):
-		print(U_Info.numb)
 		c.execute("update Users set Phone = '{}' where TG_Id = {}".format(U_Info.numb, U_Info.id))
 		db.commit()
 	for x in range(len(U_Info.answers)):
@@ -322,7 +321,9 @@ def send_us_info_by(message, a):
 					a[3] = ''
 				if a[2] == None:
 					a[2] = ''
-				msg = bot.send_message(message.chat.id, 'Пользователь: {}\n{} {}\n\n{}\n{}\n{}'.format(a[0], a[1], a[2], a[3], a[5], a[4]), reply_markup = markup)
+				if a[3] == None:
+					a[3] = ''
+				msg = bot.send_message(message.chat.id, 'Пользователь: <code>{}</code>\n<a href = "tg://user?id={}">{} {}</a>\n\n{}\n{}\n{}'.format(a[0], a[0], a[1], a[2], a[3], a[5], a[4]), reply_markup = markup, parse_mode= 'html')
 				bot.register_for_reply(msg, proc_edit_us, a[0])
 				return True
 	except:
@@ -716,6 +717,7 @@ def get_GNB_rev(message):
 
 @bot.message_handler(commands = ['del_sched'])
 def del_sched(message):
+	
 
 	if len(message.text.split()) == 2 and message.chat.id == -336427671:
 		schedule.clear(int(message.text.split()[1]))
@@ -724,40 +726,42 @@ def del_sched(message):
 @bot.message_handler(commands = ['start'])
 def start_msg(message):
 
-	if message.chat.id == -1001352923742:
-		manage_msg(message)
-		return
-	if message.chat.type != 'private':
-		bot.send_message(message.chat.id, 'К сожалению я не могу работать в групповых чатах. Напишите мне в личные сообщения.')
-		return
-	a = message.text.split(' ')
 	try:
-		us_answers.remove(get_us(message.from_user.id))
-	except:
-		None
-	b = c.execute("select * from Users where TG_Id = {}".format(message.from_user.id))
-	if len(b.fetchall()) == 0:
-		c.execute("insert into Users (Name, Surname, TG_Id, Username) values ('{}', '{}', {}, '{}')".format(
-			message.from_user.first_name,
-			message.from_user.last_name,
-			message.from_user.id,
-			message.from_user.username
-			))
-		db.commit()
-	if len(a) > 1:
-		markup = types.ReplyKeyboardMarkup()
-		markup.add(types.KeyboardButton('Да, конечно'))
-		markup.add(types.KeyboardButton('Нет, не хочу'))
-		msg = bot.send_message(message.chat.id, 'Выши отзывы помогают нам стать лучше!\n\nПожалуйста, оцените наш сервис!', reply_markup = markup)
-		bot.register_next_step_handler(msg, answ_start, a[1])
-	else:
-		markup = types.ReplyKeyboardMarkup()
-		markup.add(types.KeyboardButton('Отзыв о всех'))
-		markup.add(types.KeyboardButton('Отзыв о тревогах'))
-		markup.add(types.KeyboardButton('Отзыв о тех.группе'))
-		msg = bot.send_message(message.chat.id, 'Хотите оставить отзыв самостоятельно?\n\nМожно оставить отзыв на следущие отделения:', reply_markup = markup)
-		bot.register_next_step_handler(msg, answ_start)
-
+		if message.chat.id == -1001352923742:
+			manage_msg(message)
+			return
+		if message.chat.type != 'private':
+			bot.send_message(message.chat.id, 'К сожалению я не могу работать в групповых чатах. Напишите мне в личные сообщения.')
+			return
+		a = message.text.split(' ')
+		try:
+			us_answers.remove(get_us(message.from_user.id))
+		except:
+			None
+		b = c.execute("select * from Users where TG_Id = {}".format(message.from_user.id))
+		if len(b.fetchall()) == 0:
+			c.execute("insert into Users (Name, Surname, TG_Id, Username) values ('{}', '{}', {}, '{}')".format(
+				message.from_user.first_name,
+				message.from_user.last_name,
+				message.from_user.id,
+				message.from_user.username
+				))
+			db.commit()
+		if len(a) > 1:
+			markup = types.ReplyKeyboardMarkup()
+			markup.add(types.KeyboardButton('Да, конечно'))
+			markup.add(types.KeyboardButton('Нет, не хочу'))
+			msg = bot.send_message(message.chat.id, 'Выши отзывы помогают нам стать лучше!\n\nПожалуйста, оцените наш сервис!', reply_markup = markup)
+			bot.register_next_step_handler(msg, answ_start, a[1])
+		else:
+			markup = types.ReplyKeyboardMarkup()
+			markup.add(types.KeyboardButton('Отзыв о всех'))
+			markup.add(types.KeyboardButton('Отзыв о тревогах'))
+			markup.add(types.KeyboardButton('Отзыв о тех.группе'))
+			msg = bot.send_message(message.chat.id, 'Хотите оставить отзыв самостоятельно?\n\nМожно оставить отзыв на следущие отделения:', reply_markup = markup)
+			bot.register_next_step_handler(msg, answ_start)
+	except Exception as E:
+		print(E)
 def answ_start(message, from_ = None):
 
 	if message.text.find('/start') >= 0:
@@ -878,7 +882,7 @@ def tech_msg(message):
 	if message.text in lst_GNB:
 		append_to_us(message.from_user.id, message.text)
 		msg = bot.send_message(message.chat.id, 'Оцените качество  работы технической группы', reply_markup = get_GNB_markup())
-		bot.register_next_step_handler(message, concl_msg)
+		bot.register_next_step_handler(msg, concl_msg)
 	else:
 		non_req_GNB(message, tech_msg)
 
@@ -930,7 +934,7 @@ def get_numb_subm(message):
 		msg_text = 'Спасибо за ваш отзыв, теперь - финальный этап. Поделитесь с нами вашим номером телефона чтобы мы могли вам ответить и помочь с проблемами.'
 	c.execute("select phone from Users where TG_Id = {}".format(message.from_user.id))
 	a = c.fetchall()
-	if a != [(None, )]:
+	if a != [(None, )] and len(a)!=0:
 		message.text = 'Не передавать'
 		final_step(message)
 		return
@@ -948,7 +952,9 @@ def final_step(message):
 	markup.add(types.InlineKeyboardButton('Связаться с менеджером', callback_data = 'call_mgr'))
 	
 	if type(message.contact) != type(None):
-		append_to_us(message.from_user.id, message.contact.phone_number[1:], 'numb')
+		if message.contact.phone_number[0] == '+':
+			message.contact.phone_number = message.contact.phone_number[1:]
+		append_to_us(message.from_user.id, message.contact.phone_number, 'numb')
 		msg = bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!', reply_markup = markup)
 		proc_us(message.from_user.id, message.from_user.id)
 		us_answers.remove(get_us(message.from_user.id))
@@ -968,9 +974,10 @@ def handle_msg(call):
 	bot.answer_callback_query(call.id, 'Обрабатываю')
 	if call.data == 'new_resp':
 		call.message.text = '/start'
+		call.message.from_user = call.message.chat
 		start_msg(call.message)
 	elif call.data == 'call_mgr':
-		bot.send_message(call.message.chat.id, 'Желаю вам здоровья и побыстрее найти номер менеджера)')
+		bot.send_message(call.message.chat.id, 'В разработке.')
 
 class MTread(Thread):
 
