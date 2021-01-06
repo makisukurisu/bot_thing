@@ -758,7 +758,7 @@ def start_msg(message):
 			markup.add(types.KeyboardButton('Отзыв о всех'))
 			markup.add(types.KeyboardButton('Отзыв о тревогах'))
 			markup.add(types.KeyboardButton('Отзыв о тех.группе'))
-			msg = bot.send_message(message.chat.id, 'Хотите оставить отзыв самостоятельно?\n\nМожно оставить отзыв на следущие отделения:', reply_markup = markup)
+			msg = bot.send_message(message.chat.id, 'Хотите оставить отзыв?\n\nПожалуйста, выберите направление которое хотите оценить:', reply_markup = markup)
 			bot.register_next_step_handler(msg, answ_start)
 	except Exception as E:
 		print(E)
@@ -787,7 +787,7 @@ def answ_start(message, from_ = None):
 			bot.send_message(message.chat.id, 'Вы не должны были это видеть (Если вы не игрались с коммандой /start - напишите поддержке)')
 		return
 	if message.text == 'Отзыв о всех':
-		msg = bot.send_message(message.chat.id, 'Оцените качество обслуживания офис-менеджера', reply_markup = get_GNB_markup())
+		msg = bot.send_message(message.chat.id, 'Оцените качество обслуживания нашего эксперта по продажам', reply_markup = get_GNB_markup())
 		bot.register_next_step_handler(msg, pult_msg)
 	elif message.text == 'Отзыв о тревогах':
 		msg = bot.send_message(message.chat.id, "Оцените качество отработки тревог на Вашем объекте", reply_markup = get_GNB_markup())
@@ -931,7 +931,7 @@ def get_numb_subm(message):
 	else:
 		append_to_us(message.from_user.id, None, 'msg')
 	if msg_text == '':
-		msg_text = 'Спасибо за ваш отзыв, теперь - финальный этап. Поделитесь с нами вашим номером телефона чтобы мы могли вам ответить и помочь с проблемами.'
+		msg_text = 'Благодарим за Ваш отзыв!\nПожалуйста, поделитесь своим контактным телефоном чтобы мы связались с Вами и помогли с решением проблемы.'
 	c.execute("select phone from Users where TG_Id = {}".format(message.from_user.id))
 	a = c.fetchall()
 	if a != [(None, )] and len(a)!=0:
@@ -955,11 +955,11 @@ def final_step(message):
 		if message.contact.phone_number[0] == '+':
 			message.contact.phone_number = message.contact.phone_number[1:]
 		append_to_us(message.from_user.id, message.contact.phone_number, 'numb')
-		msg = bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!', reply_markup = markup)
+		msg = bot.send_message(message.chat.id, 'Благодарим за Ваше мнение, оно помогает нам стать лучше!\nБудьте в ЦЕНТРе безопасности', reply_markup = markup)
 		proc_us(message.from_user.id, message.from_user.id)
 		us_answers.remove(get_us(message.from_user.id))
 	elif message.text == 'Не передавать':
-		msg = bot.send_message(message.chat.id, 'Спасибо за ваш отзыв, будем расти вместе с вами!', reply_markup = markup)
+		msg = bot.send_message(message.chat.id, 'Благодарим за Ваше мнение, оно помогает нам стать лучше!\nБудьте в ЦЕНТРе безопасности', reply_markup = markup)
 		proc_us(message.from_user.id, message.from_user.id)
 		us_answers.remove(get_us(message.from_user.id))
 	elif message.text.find('/start') >= 0:
