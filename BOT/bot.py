@@ -156,7 +156,7 @@ def proc_us(id, to_us):
 			U_Info.message,
 			datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
 			x))
-		msg = '{} - {} {}\nОставил новый отзыв:\n{}\nОценил {}\n{}{}Номер отзыва: {}\n\nId пользователя: <code>{}</code>\n\n'.format(U_Info.name, U_Info.numb, us,m_text[m_text.index(x)], answ_var[m_text.index(x)], U_Info.from_, um, r_id, U_Info.id)
+		msg = '<a href = "tg://user?id={}">{}</a> - {} {}\nОставил новый отзыв:\n{}\nОценил {}\n{}{}Номер отзыва: {}\n\nId пользователя: <code>{}</code>\n\n'.format(U_Info.id, U_Info.name, U_Info.numb, us,m_text[m_text.index(x)], answ_var[m_text.index(x)], U_Info.from_, um, r_id, U_Info.id)
 		bot.send_message(chats_indx[m_text.index(x)], msg, parse_mode = 'html')
 	db.commit()
 
