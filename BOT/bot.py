@@ -726,6 +726,9 @@ def del_sched(message):
 @bot.message_handler(commands = ['start'])
 def start_msg(message):
 
+
+	if message.text == 'В главное меню':
+		message.text = '/start'
 	try:
 		if message.chat.id == -1001352923742:
 			manage_msg(message)
@@ -764,6 +767,8 @@ def start_msg(message):
 		print(E)
 def answ_start(message, from_ = None):
 
+	if message.text == 'В главное меню':
+		return
 	if message.text.find('/start') >= 0:
 		start_msg(message)
 		return
@@ -977,7 +982,11 @@ def handle_msg(call):
 		call.message.from_user = call.message.chat
 		start_msg(call.message)
 	elif call.data == 'call_mgr':
-		bot.send_message(call.message.chat.id, 'В разработке.')
+		bot.clear_step_handler_by_chat_id(call.message.chat.id)
+		markup = types.ReplyKeyboardMarkup()
+		markup.add(types.KeyboardButton('В главное меню'))
+		bot.send_message(call.message.chat.id, 'Здравствуйте.\nНомер телефона для связи с менеджером 0482321000', reply_markup= markup)
+		bot.register_next_step_handler_by_chat_id(call.message.chat.id, start_msg)
 
 class MTread(Thread):
 
